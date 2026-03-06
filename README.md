@@ -5,9 +5,12 @@ Toon shader + tooling for palette-driven rendering in URP.
 ## Included
 
 - `Runtime/Shaders/PaletteToonRamp.shader`
+- `Runtime/Materials/PaletteToonRamp.mat` (ready-to-use)
+- `Runtime/Palettes/ENDESGA-64-1x.png` (bundled starter palette)
 - `Runtime/PaletteToonController.cs`
 - `Editor/PaletteToonControllerEditor.cs`
 - `Editor/PaletteTexturePostprocessor.cs`
+- `Editor/PaletteToonQuickSetup.cs` (one-click menu setup)
 
 ## Requirements
 
@@ -16,11 +19,13 @@ Toon shader + tooling for palette-driven rendering in URP.
 
 ## Quick Start
 
-1. Create a material using `Custom/PaletteToonRamp`.
-2. Apply the material to a MeshRenderer.
-3. Add `PaletteToonController` to the same GameObject.
-4. Assign a 1px palette PNG in `Palette Texture`.
-5. Pick `Shadow/Base/Highlight` indexes in the inspector.
+1. Select one or more objects with `Renderer`.
+2. Run `Tools > Palette Toon > Apply To Selected Renderers`.
+3. Pick `Shadow/Base/Highlight` indexes in the inspector.
+
+Optional:
+
+- Run `Tools > Palette Toon > Create Local Material Preset` to create `Assets/Materials/PaletteToonRamp.mat` in your project (instead of using the package material directly).
 
 ## Notes
 
