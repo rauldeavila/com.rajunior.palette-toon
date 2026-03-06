@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.3.1
+
+- Fixed range-percentage mode fallback for non-punctual additional lights (directional additional lights now use classic band contribution).
+
 ## 1.3.0
 
 - Added band distribution controls by percentage:

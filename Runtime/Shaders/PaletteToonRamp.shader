@@ -122,7 +122,7 @@ Shader "Custom/PaletteToonRamp"
 
                 if (lightPositionWS.w == 0.0)
                 {
-                    return 1.0;
+                    return -1.0;
                 }
 
                 float3 lightVector = lightPositionWS.xyz - positionWS * lightPositionWS.w;
@@ -185,7 +185,15 @@ Shader "Custom/PaletteToonRamp"
                         float addBand;
                         if (_UseRangePercentForLocalLights > 0.5)
                         {
-                            addBand = LocalLightRangeSignal(lightIndex, input.positionWS, l.distanceAttenuation) * l.shadowAttenuation;
+                            float localRange = LocalLightRangeSignal(lightIndex, input.positionWS, l.distanceAttenuation);
+                            if (localRange >= 0.0)
+                            {
+                                addBand = localRange * l.shadowAttenuation;
+                            }
+                            else
+                            {
+                                addBand = BandContribution(dot(N, l.direction), l.distanceAttenuation, l.shadowAttenuation, l.color);
+                            }
                         }
                         else
                         {
