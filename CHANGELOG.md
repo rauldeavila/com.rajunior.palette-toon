@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.4.0
+
+- **Shader**: Point/spot lights now combine surface orientation (N·L) with linear range falloff — bands match the light gizmo and respond to surface facing direction.
+- **Shader**: Removed `Use Range Percent For Local Lights` toggle — the new combined approach replaces both previous modes.
+- **Inspector**: Palette grid moved to top — primary interaction is now immediately visible.
+- **Inspector**: Auto-advance color picking — click 3 palette colors in sequence to assign Shadow → Base → Highlight (3 clicks instead of 9+).
+- **Inspector**: Added 3-band preview bar showing shadow/base/highlight colors proportional to band widths.
+- **Inspector**: Advanced settings (Base Tint, Color Space, Intensity, Accumulation, Fog) collapsed into foldout by default.
+- **Inspector**: Removed threshold readout fields — thresholds are now internal implementation details.
+- **Runtime**: `convertPaletteToProjectColorSpace` now defaults to `false` — palette colors are used as-is (real sRGB colors out of the box).
+- **Runtime**: Threshold fields hidden from fallback inspector.
+
 ## 1.3.1
 
 - Fixed range-percentage mode fallback for non-punctual additional lights (directional additional lights now use classic band contribution).

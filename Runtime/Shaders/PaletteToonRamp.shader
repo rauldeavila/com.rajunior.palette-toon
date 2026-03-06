@@ -12,7 +12,6 @@ Shader "Custom/PaletteToonRamp"
         _Threshold2("Highlight Threshold", Range(0, 1)) = 0.75
 
         [Header(Lighting Behavior)]
-        _UseRangePercentForLocalLights("Use Range Percent For Local Lights", Range(0, 1)) = 1
         _IntensityAffectsBands("Intensity Affects Bands", Range(0, 1)) = 0
         _BandAccumulation("Band Accumulation (0 Add / 1 Max)", Range(0, 1)) = 1
         _ApplyFog("Apply Fog", Range(0, 1)) = 0
@@ -73,7 +72,6 @@ Shader "Custom/PaletteToonRamp"
             float4 _ColorHighlight;
             float  _Threshold1;
             float  _Threshold2;
-            float  _UseRangePercentForLocalLights;
             float  _IntensityAffectsBands;
             float  _BandAccumulation;
             float  _ApplyFog;
@@ -183,20 +181,18 @@ Shader "Custom/PaletteToonRamp"
                         // Use overload with shadow mask so point/spot shadows are applied.
                         Light l = GetAdditionalLight(lightIndex, input.positionWS, half4(1.0, 1.0, 1.0, 1.0));
                         float addBand;
-                        if (_UseRangePercentForLocalLights > 0.5)
+                        float localRange = LocalLightRangeSignal(lightIndex, input.positionWS, l.distanceAttenuation);
+                        if (localRange >= 0.0)
                         {
-                            float localRange = LocalLightRangeSignal(lightIndex, input.positionWS, l.distanceAttenuation);
-                            if (localRange >= 0.0)
-                            {
-                                addBand = localRange * l.shadowAttenuation;
-                            }
-                            else
-                            {
-                                addBand = BandContribution(dot(N, l.direction), l.distanceAttenuation, l.shadowAttenuation, l.color);
-                            }
+                            // Point/Spot: N·L × linear range × shadow — bands match the light gizmo
+                            float NdotL = saturate(dot(N, l.direction));
+                            float combined = NdotL * localRange * l.shadowAttenuation;
+                            float withIntensity = combined * Luminance3(l.color);
+                            addBand = lerp(combined, withIntensity, _IntensityAffectsBands);
                         }
                         else
                         {
+                            // Additional directional light: standard N·L
                             addBand = BandContribution(dot(N, l.direction), l.distanceAttenuation, l.shadowAttenuation, l.color);
                         }
                         totalLight = useAdditive ? (totalLight + addBand) : max(totalLight, addBand);

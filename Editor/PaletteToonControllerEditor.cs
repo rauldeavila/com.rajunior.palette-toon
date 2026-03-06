@@ -24,17 +24,21 @@ public class PaletteToonControllerEditor : Editor
     private SerializedProperty _highlightThreshold;
     private SerializedProperty _baseTint;
     private SerializedProperty _convertPaletteToProjectColorSpace;
-    private SerializedProperty _useRangePercentForLocalLights;
     private SerializedProperty _intensityAffectsBands;
     private SerializedProperty _bandAccumulation;
     private SerializedProperty _applyFog;
 
     private ActiveSlot? _activeSlot = null;
+    private bool _autoAdvancing = false;
+    private bool _showAdvanced = false;
+
     private Texture2D _cachedTexture;
     private Color[] _cachedColors;
     private int _cachedWidth;
     private int _cachedHeight;
     private bool _cachedConvertToProjectColorSpace;
+
+    private const string AdvancedFoldoutKey = "PaletteToon_ShowAdvanced";
 
     private void OnEnable()
     {
@@ -50,46 +54,68 @@ public class PaletteToonControllerEditor : Editor
         _highlightThreshold = serializedObject.FindProperty("highlightThreshold");
         _baseTint = serializedObject.FindProperty("baseTint");
         _convertPaletteToProjectColorSpace = serializedObject.FindProperty("convertPaletteToProjectColorSpace");
-        _useRangePercentForLocalLights = serializedObject.FindProperty("useRangePercentForLocalLights");
         _intensityAffectsBands = serializedObject.FindProperty("intensityAffectsBands");
         _bandAccumulation = serializedObject.FindProperty("bandAccumulation");
         _applyFog = serializedObject.FindProperty("applyFog");
+
+        _showAdvanced = SessionState.GetBool(AdvancedFoldoutKey, false);
     }
 
     public override void OnInspectorGUI()
     {
         serializedObject.Update();
 
+        // ── Section A: Setup ──
         EditorGUILayout.PropertyField(_targetRenderer);
         EditorGUILayout.PropertyField(_paletteTexture);
-        EditorGUILayout.PropertyField(_baseTint);
-        EditorGUILayout.PropertyField(_convertPaletteToProjectColorSpace, new GUIContent("Convert Palette To Project Space"));
 
-        EditorGUILayout.Space(6f);
-        EditorGUILayout.LabelField("Band Percentages", EditorStyles.boldLabel);
-        EditorGUILayout.PropertyField(_darkBandPercentage, new GUIContent("Dark Band %"));
-        EditorGUILayout.PropertyField(_baseBandPercentage, new GUIContent("Base Band %"));
-        EditorGUILayout.PropertyField(_highlightBandPercentage, new GUIContent("Highlight Band %"));
+        // ── Section B: Palette Grid (primary interaction) ──
+        DrawPickingStateLabel();
+        DrawPaletteGrid();
 
-        ClampBandPercentages();
-        DrawAutoThresholdInfo();
-
-        EditorGUILayout.Space(6f);
-        EditorGUILayout.LabelField("Lighting Behavior", EditorStyles.boldLabel);
-        EditorGUILayout.PropertyField(_useRangePercentForLocalLights, new GUIContent("Use Range % For Point/Spot"));
-        EditorGUILayout.PropertyField(_intensityAffectsBands, new GUIContent("Intensity Affects Bands"));
-        EditorGUILayout.PropertyField(_bandAccumulation, new GUIContent("Band Accumulation"));
-        EditorGUILayout.PropertyField(_applyFog, new GUIContent("Apply Fog"));
-
+        // ── Section C: Toon Colors + Preview ──
         ClampIndexesByPaletteSize();
 
         EditorGUILayout.Space(6f);
-        EditorGUILayout.LabelField("3 Colors", EditorStyles.boldLabel);
+        EditorGUILayout.LabelField("Toon Colors", EditorStyles.boldLabel);
         DrawSlotRow("Shadow", _shadowColorIndex, ActiveSlot.Shadow);
         DrawSlotRow("Base", _baseColorIndex, ActiveSlot.Base);
         DrawSlotRow("Highlight", _highlightColorIndex, ActiveSlot.Highlight);
+        DrawBandPreviewBar();
 
-        DrawPaletteGrid();
+        // ── Section D: Band Balance ──
+        EditorGUILayout.Space(6f);
+        EditorGUILayout.LabelField("Band Balance", EditorStyles.boldLabel);
+        EditorGUILayout.PropertyField(_darkBandPercentage, new GUIContent("Shadow Width"));
+        EditorGUILayout.PropertyField(_baseBandPercentage, new GUIContent("Base Width"));
+        EditorGUILayout.PropertyField(_highlightBandPercentage, new GUIContent("Highlight Width"));
+        ClampBandPercentages();
+
+        // ── Section E: Advanced Settings (collapsed by default) ──
+        EditorGUILayout.Space(6f);
+        bool newAdvanced = EditorGUILayout.Foldout(_showAdvanced, "Advanced Settings", true);
+        if (newAdvanced != _showAdvanced)
+        {
+            _showAdvanced = newAdvanced;
+            SessionState.SetBool(AdvancedFoldoutKey, _showAdvanced);
+        }
+
+        if (_showAdvanced)
+        {
+            EditorGUI.indentLevel++;
+            EditorGUILayout.PropertyField(_baseTint, new GUIContent("Base Tint"));
+            EditorGUILayout.PropertyField(_convertPaletteToProjectColorSpace,
+                new GUIContent("Convert to Project Color Space",
+                    "Converts sRGB palette colors to Linear when project uses Linear rendering."));
+            EditorGUILayout.PropertyField(_intensityAffectsBands,
+                new GUIContent("Intensity Affects Bands",
+                    "Blend light intensity into band calculation."));
+            EditorGUILayout.PropertyField(_bandAccumulation,
+                new GUIContent("Band Accumulation",
+                    "How multiple lights combine: Add sums contributions, Max takes the brightest."));
+            EditorGUILayout.PropertyField(_applyFog, new GUIContent("Apply Fog"));
+            EditorGUI.indentLevel--;
+        }
 
         serializedObject.ApplyModifiedProperties();
 
@@ -97,35 +123,122 @@ public class PaletteToonControllerEditor : Editor
         controller.Apply();
     }
 
+    private void DrawPickingStateLabel()
+    {
+        if (_cachedColors == null || _cachedColors.Length == 0)
+            return;
+
+        if (_activeSlot == null)
+        {
+            EditorGUILayout.HelpBox(
+                "Click any color to assign: Shadow \u2192 Base \u2192 Highlight",
+                MessageType.None);
+        }
+        else
+        {
+            EditorGUILayout.HelpBox(
+                "Picking: " + _activeSlot.Value,
+                MessageType.Info);
+        }
+    }
+
     private void DrawSlotRow(string label, SerializedProperty indexProp, ActiveSlot slot)
     {
-        EditorGUILayout.BeginHorizontal();
+        bool isActive = _activeSlot == slot;
+
+        Rect rowRect = EditorGUILayout.BeginHorizontal();
+        if (isActive && Event.current.type == EventType.Repaint)
+        {
+            EditorGUI.DrawRect(rowRect, new Color(0.3f, 0.5f, 0.8f, 0.15f));
+        }
+
         GUILayout.Label(label, GUILayout.Width(60f));
 
         Color color = GetPaletteColor(indexProp.intValue);
         Rect swatchRect = GUILayoutUtility.GetRect(24f, 16f, GUILayout.Width(24f), GUILayout.Height(16f));
-        EditorGUI.DrawRect(swatchRect, color);
-        DrawOutline(swatchRect, Color.black);
+        if (Event.current.type == EventType.Repaint)
+        {
+            EditorGUI.DrawRect(swatchRect, color);
+            DrawOutline(swatchRect, Color.black);
+        }
 
         EditorGUI.BeginChangeCheck();
-        int newIndex = EditorGUILayout.DelayedIntField(indexProp.intValue, GUILayout.Width(64f));
+        int newIndex = EditorGUILayout.DelayedIntField(indexProp.intValue, GUILayout.Width(36f));
         if (EditorGUI.EndChangeCheck())
         {
             indexProp.intValue = Mathf.Max(0, newIndex);
         }
 
-        bool isActive = _activeSlot == slot;
-        bool clicked = GUILayout.Toggle(isActive, isActive ? "Picking" : "Pick", "Button", GUILayout.Width(64f));
+        string buttonLabel = isActive ? ">> Picking" : "Pick";
+        bool clicked = GUILayout.Toggle(isActive, buttonLabel, "Button", GUILayout.Width(74f));
         if (clicked && !isActive)
         {
             _activeSlot = slot;
+            _autoAdvancing = false;
         }
         else if (!clicked && isActive)
         {
             _activeSlot = null;
+            _autoAdvancing = false;
         }
 
         EditorGUILayout.EndHorizontal();
+    }
+
+    private void DrawBandPreviewBar()
+    {
+        EditorGUILayout.Space(4f);
+
+        Rect barRect = GUILayoutUtility.GetRect(0f, 24f, GUILayout.ExpandWidth(true), GUILayout.Height(24f));
+
+        if (Event.current.type != EventType.Repaint)
+            return;
+
+        float dark = _darkBandPercentage.floatValue;
+        float mid = _baseBandPercentage.floatValue;
+        float hi = _highlightBandPercentage.floatValue;
+        float total = dark + mid + hi;
+        if (total < 0.001f) total = 1f;
+
+        float darkW = (dark / total) * barRect.width;
+        float midW = (mid / total) * barRect.width;
+        float hiW = (hi / total) * barRect.width;
+
+        Color shadowColor = GetPaletteColor(_shadowColorIndex.intValue);
+        Color baseColor = GetPaletteColor(_baseColorIndex.intValue);
+        Color hlColor = GetPaletteColor(_highlightColorIndex.intValue);
+
+        EditorGUI.DrawRect(new Rect(barRect.x, barRect.y, darkW, barRect.height), shadowColor);
+        EditorGUI.DrawRect(new Rect(barRect.x + darkW, barRect.y, midW, barRect.height), baseColor);
+        EditorGUI.DrawRect(new Rect(barRect.x + darkW + midW, barRect.y, hiW, barRect.height), hlColor);
+
+        // Separator lines
+        EditorGUI.DrawRect(new Rect(barRect.x + darkW - 0.5f, barRect.y, 1f, barRect.height), Color.black);
+        EditorGUI.DrawRect(new Rect(barRect.x + darkW + midW - 0.5f, barRect.y, 1f, barRect.height), Color.black);
+
+        DrawOutline(barRect, new Color(0.2f, 0.2f, 0.2f));
+
+        // Labels inside segments
+        GUIStyle centeredLabel = new GUIStyle(EditorStyles.miniLabel)
+        {
+            alignment = TextAnchor.MiddleCenter
+        };
+
+        if (darkW > 40f)
+        {
+            centeredLabel.normal.textColor = GetContrastTextColor(shadowColor);
+            GUI.Label(new Rect(barRect.x, barRect.y, darkW, barRect.height), "Shadow", centeredLabel);
+        }
+        if (midW > 30f)
+        {
+            centeredLabel.normal.textColor = GetContrastTextColor(baseColor);
+            GUI.Label(new Rect(barRect.x + darkW, barRect.y, midW, barRect.height), "Base", centeredLabel);
+        }
+        if (hiW > 30f)
+        {
+            centeredLabel.normal.textColor = GetContrastTextColor(hlColor);
+            GUI.Label(new Rect(barRect.x + darkW + midW, barRect.y, hiW, barRect.height), "Highlight", centeredLabel);
+        }
     }
 
     private void DrawPaletteGrid()
@@ -135,7 +248,7 @@ public class PaletteToonControllerEditor : Editor
 
         if (_cachedColors == null || _cachedColors.Length == 0)
         {
-            EditorGUILayout.HelpBox("Selecione uma paleta .png para escolher as cores visualmente.", MessageType.Info);
+            EditorGUILayout.HelpBox("Assign a palette .png to pick colors visually.", MessageType.Info);
             return;
         }
 
@@ -157,21 +270,25 @@ public class PaletteToonControllerEditor : Editor
                 }
 
                 Rect rect = GUILayoutUtility.GetRect(18f, 18f, GUILayout.Width(18f), GUILayout.Height(18f));
-                EditorGUI.DrawRect(rect, _cachedColors[index]);
 
-                if (index == _shadowColorIndex.intValue)
+                if (Event.current.type == EventType.Repaint)
                 {
-                    DrawOutline(rect, new Color(0.25f, 0.25f, 0.25f));
-                }
+                    EditorGUI.DrawRect(rect, _cachedColors[index]);
 
-                if (index == _baseColorIndex.intValue)
-                {
-                    DrawOutline(new Rect(rect.x + 1f, rect.y + 1f, rect.width - 2f, rect.height - 2f), Color.white);
-                }
+                    if (index == _shadowColorIndex.intValue)
+                    {
+                        DrawOutline(rect, new Color(0.25f, 0.25f, 0.25f));
+                    }
 
-                if (index == _highlightColorIndex.intValue)
-                {
-                    DrawOutline(new Rect(rect.x + 2f, rect.y + 2f, rect.width - 4f, rect.height - 4f), Color.yellow);
+                    if (index == _baseColorIndex.intValue)
+                    {
+                        DrawOutline(new Rect(rect.x + 1f, rect.y + 1f, rect.width - 2f, rect.height - 2f), Color.white);
+                    }
+
+                    if (index == _highlightColorIndex.intValue)
+                    {
+                        DrawOutline(new Rect(rect.x + 2f, rect.y + 2f, rect.width - 4f, rect.height - 4f), Color.yellow);
+                    }
                 }
 
                 if (GUI.Button(rect, GUIContent.none, GUIStyle.none))
@@ -181,31 +298,32 @@ public class PaletteToonControllerEditor : Editor
             }
             EditorGUILayout.EndHorizontal();
         }
-
-        EditorGUILayout.HelpBox("Clique na paleta para aplicar ao slot ativo (Shadow, Base ou Highlight).", MessageType.None);
     }
 
     private void AssignToActiveSlot(int index)
     {
         if (_activeSlot == null)
         {
-            return;
+            _activeSlot = ActiveSlot.Shadow;
+            _autoAdvancing = true;
         }
 
         switch (_activeSlot.Value)
         {
             case ActiveSlot.Shadow:
                 _shadowColorIndex.intValue = index;
+                _activeSlot = _autoAdvancing ? ActiveSlot.Base : (ActiveSlot?)null;
                 break;
             case ActiveSlot.Base:
                 _baseColorIndex.intValue = index;
+                _activeSlot = _autoAdvancing ? ActiveSlot.Highlight : (ActiveSlot?)null;
                 break;
-            default:
+            case ActiveSlot.Highlight:
                 _highlightColorIndex.intValue = index;
+                _activeSlot = null;
+                _autoAdvancing = false;
                 break;
         }
-
-        _activeSlot = null;
     }
 
     private void ClampBandPercentages()
@@ -227,17 +345,6 @@ public class PaletteToonControllerEditor : Editor
         float baseNorm = _baseBandPercentage.floatValue / total;
         _shadowThreshold.floatValue = Mathf.Clamp01(darkNorm);
         _highlightThreshold.floatValue = Mathf.Clamp01(darkNorm + baseNorm);
-    }
-
-    private void DrawAutoThresholdInfo()
-    {
-        EditorGUILayout.BeginHorizontal();
-        using (new EditorGUI.DisabledScope(true))
-        {
-            EditorGUILayout.FloatField("Shadow Threshold", _shadowThreshold.floatValue);
-            EditorGUILayout.FloatField("Highlight Threshold", _highlightThreshold.floatValue);
-        }
-        EditorGUILayout.EndHorizontal();
     }
 
     private void ClampIndexesByPaletteSize()
@@ -330,6 +437,12 @@ public class PaletteToonControllerEditor : Editor
         }
 
         return converted;
+    }
+
+    private static Color GetContrastTextColor(Color bg)
+    {
+        float lum = 0.299f * bg.r + 0.587f * bg.g + 0.114f * bg.b;
+        return lum > 0.5f ? Color.black : Color.white;
     }
 
     private static void DrawOutline(Rect rect, Color color)

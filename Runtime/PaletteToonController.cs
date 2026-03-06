@@ -13,7 +13,6 @@ public class PaletteToonController : MonoBehaviour
     private static readonly int ColorHighlightId = Shader.PropertyToID("_ColorHighlight");
     private static readonly int Threshold1Id     = Shader.PropertyToID("_Threshold1");
     private static readonly int Threshold2Id     = Shader.PropertyToID("_Threshold2");
-    private static readonly int UseRangePercentForLocalLightsId = Shader.PropertyToID("_UseRangePercentForLocalLights");
     private static readonly int IntensityAffectsBandsId = Shader.PropertyToID("_IntensityAffectsBands");
     private static readonly int BandAccumulationId      = Shader.PropertyToID("_BandAccumulation");
     private static readonly int ApplyFogId              = Shader.PropertyToID("_ApplyFog");
@@ -24,35 +23,31 @@ public class PaletteToonController : MonoBehaviour
         Max = 1
     }
 
-    [Header("Target")]
+    [Header("Setup")]
     public Renderer targetRenderer;
-
-    [Header("Palette PNG (1px colors)")]
     public Texture2D paletteTexture;
 
-    [Header("Toon Colors (3 colors per object)")]
+    [Header("Toon Colors")]
     [Min(0)] public int shadowColorIndex    = 0;
     [Min(0)] public int baseColorIndex      = 1;
     [Min(0)] public int highlightColorIndex = 2;
 
-    [Header("Band Percentages (sum auto-normalized)")]
+    [Header("Band Balance")]
     [Range(0f, 1f)] public float darkBandPercentage = 0.35f;
     [Range(0f, 1f)] public float baseBandPercentage = 0.40f;
     [Range(0f, 1f)] public float highlightBandPercentage = 0.25f;
 
-    [Header("Legacy Ramp Thresholds (auto from percentages)")]
+    [HideInInspector]
     [Range(0f, 1f)] public float shadowThreshold    = 0.35f;
+    [HideInInspector]
     [Range(0f, 1f)] public float highlightThreshold = 0.75f;
 
     [Header("Tint")]
     public Color baseTint = Color.white;
 
-    [Header("Color Fidelity")]
-    [Tooltip("Converts palette colors from sRGB to project color space (recommended for Linear projects).")]
-    public bool convertPaletteToProjectColorSpace = true;
-
-    [Header("Lighting Behavior")]
-    public bool useRangePercentForLocalLights = true;
+    [Header("Advanced")]
+    [Tooltip("Converts palette colors from sRGB to project color space.")]
+    public bool convertPaletteToProjectColorSpace = false;
     [Range(0f, 1f)] public float intensityAffectsBands = 0f;
     public BandAccumulationMode bandAccumulation = BandAccumulationMode.Max;
     public bool applyFog = false;
@@ -124,7 +119,6 @@ public class PaletteToonController : MonoBehaviour
         _mpb.SetColor(BaseColorId,       baseTint);
         _mpb.SetFloat(Threshold1Id,      shadowThreshold);
         _mpb.SetFloat(Threshold2Id,      highlightThreshold);
-        _mpb.SetFloat(UseRangePercentForLocalLightsId, useRangePercentForLocalLights ? 1f : 0f);
         _mpb.SetFloat(IntensityAffectsBandsId, intensityAffectsBands);
         _mpb.SetFloat(BandAccumulationId, (float)bandAccumulation);
         _mpb.SetFloat(ApplyFogId, applyFog ? 1f : 0f);
