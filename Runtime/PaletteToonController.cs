@@ -13,6 +13,7 @@ public class PaletteToonController : MonoBehaviour
     private static readonly int ColorHighlightId = Shader.PropertyToID("_ColorHighlight");
     private static readonly int Threshold1Id     = Shader.PropertyToID("_Threshold1");
     private static readonly int Threshold2Id     = Shader.PropertyToID("_Threshold2");
+    private static readonly int UseRangePercentForLocalLightsId = Shader.PropertyToID("_UseRangePercentForLocalLights");
     private static readonly int IntensityAffectsBandsId = Shader.PropertyToID("_IntensityAffectsBands");
     private static readonly int BandAccumulationId      = Shader.PropertyToID("_BandAccumulation");
     private static readonly int ApplyFogId              = Shader.PropertyToID("_ApplyFog");
@@ -34,7 +35,12 @@ public class PaletteToonController : MonoBehaviour
     [Min(0)] public int baseColorIndex      = 1;
     [Min(0)] public int highlightColorIndex = 2;
 
-    [Header("Ramp Thresholds")]
+    [Header("Band Percentages (sum auto-normalized)")]
+    [Range(0f, 1f)] public float darkBandPercentage = 0.35f;
+    [Range(0f, 1f)] public float baseBandPercentage = 0.40f;
+    [Range(0f, 1f)] public float highlightBandPercentage = 0.25f;
+
+    [Header("Legacy Ramp Thresholds (auto from percentages)")]
     [Range(0f, 1f)] public float shadowThreshold    = 0.35f;
     [Range(0f, 1f)] public float highlightThreshold = 0.75f;
 
@@ -46,6 +52,7 @@ public class PaletteToonController : MonoBehaviour
     public bool convertPaletteToProjectColorSpace = true;
 
     [Header("Lighting Behavior")]
+    public bool useRangePercentForLocalLights = true;
     [Range(0f, 1f)] public float intensityAffectsBands = 0f;
     public BandAccumulationMode bandAccumulation = BandAccumulationMode.Max;
     public bool applyFog = false;
@@ -78,8 +85,7 @@ public class PaletteToonController : MonoBehaviour
 
     private void OnValidate()
     {
-        shadowThreshold    = Mathf.Clamp01(shadowThreshold);
-        highlightThreshold = Mathf.Clamp(highlightThreshold, shadowThreshold, 1f);
+        NormalizeBandPercentages(out shadowThreshold, out highlightThreshold);
         intensityAffectsBands = Mathf.Clamp01(intensityAffectsBands);
         Apply();
     }
@@ -110,12 +116,15 @@ public class PaletteToonController : MonoBehaviour
 
         targetRenderer.GetPropertyBlock(_mpb);
 
+        NormalizeBandPercentages(out shadowThreshold, out highlightThreshold);
+
         _mpb.SetColor(ColorShadowId,     GetCachedColor(shadowColorIndex));
         _mpb.SetColor(ColorBaseId,       GetCachedColor(baseColorIndex));
         _mpb.SetColor(ColorHighlightId,  GetCachedColor(highlightColorIndex));
         _mpb.SetColor(BaseColorId,       baseTint);
         _mpb.SetFloat(Threshold1Id,      shadowThreshold);
         _mpb.SetFloat(Threshold2Id,      highlightThreshold);
+        _mpb.SetFloat(UseRangePercentForLocalLightsId, useRangePercentForLocalLights ? 1f : 0f);
         _mpb.SetFloat(IntensityAffectsBandsId, intensityAffectsBands);
         _mpb.SetFloat(BandAccumulationId, (float)bandAccumulation);
         _mpb.SetFloat(ApplyFogId, applyFog ? 1f : 0f);
@@ -192,5 +201,27 @@ public class PaletteToonController : MonoBehaviour
         }
 
         return converted;
+    }
+
+    private void NormalizeBandPercentages(out float thresholdShadow, out float thresholdHighlight)
+    {
+        darkBandPercentage = Mathf.Clamp01(darkBandPercentage);
+        baseBandPercentage = Mathf.Clamp01(baseBandPercentage);
+        highlightBandPercentage = Mathf.Clamp01(highlightBandPercentage);
+
+        float total = darkBandPercentage + baseBandPercentage + highlightBandPercentage;
+        if (total <= 0.0001f)
+        {
+            darkBandPercentage = 0.35f;
+            baseBandPercentage = 0.40f;
+            highlightBandPercentage = 0.25f;
+            total = 1f;
+        }
+
+        float dark = darkBandPercentage / total;
+        float baseBand = baseBandPercentage / total;
+
+        thresholdShadow = Mathf.Clamp01(dark);
+        thresholdHighlight = Mathf.Clamp01(dark + baseBand);
     }
 }

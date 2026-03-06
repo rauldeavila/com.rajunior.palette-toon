@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.3.0
+
+- Added band distribution controls by percentage:
+  - `Dark Band %`
+  - `Base Band %`
+  - `Highlight Band %`
+  - Percentages are auto-normalized and converted to thresholds internally.
+- Added range-driven local light mapping for point/spot:
+  - `Use Range % For Point/Spot` (default on)
+  - Band placement now follows light range volume (gizmo) instead of light intensity by default.
+- Kept `Intensity Affects Bands` for optional old-style behavior when desired.
+
 ## 1.2.0
 
 - Added explicit lighting-behavior controls on `PaletteToonController`:

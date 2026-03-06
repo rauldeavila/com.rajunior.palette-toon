@@ -17,10 +17,14 @@ public class PaletteToonControllerEditor : Editor
     private SerializedProperty _shadowColorIndex;
     private SerializedProperty _baseColorIndex;
     private SerializedProperty _highlightColorIndex;
+    private SerializedProperty _darkBandPercentage;
+    private SerializedProperty _baseBandPercentage;
+    private SerializedProperty _highlightBandPercentage;
     private SerializedProperty _shadowThreshold;
     private SerializedProperty _highlightThreshold;
     private SerializedProperty _baseTint;
     private SerializedProperty _convertPaletteToProjectColorSpace;
+    private SerializedProperty _useRangePercentForLocalLights;
     private SerializedProperty _intensityAffectsBands;
     private SerializedProperty _bandAccumulation;
     private SerializedProperty _applyFog;
@@ -39,10 +43,14 @@ public class PaletteToonControllerEditor : Editor
         _shadowColorIndex = serializedObject.FindProperty("shadowColorIndex");
         _baseColorIndex = serializedObject.FindProperty("baseColorIndex");
         _highlightColorIndex = serializedObject.FindProperty("highlightColorIndex");
+        _darkBandPercentage = serializedObject.FindProperty("darkBandPercentage");
+        _baseBandPercentage = serializedObject.FindProperty("baseBandPercentage");
+        _highlightBandPercentage = serializedObject.FindProperty("highlightBandPercentage");
         _shadowThreshold = serializedObject.FindProperty("shadowThreshold");
         _highlightThreshold = serializedObject.FindProperty("highlightThreshold");
         _baseTint = serializedObject.FindProperty("baseTint");
         _convertPaletteToProjectColorSpace = serializedObject.FindProperty("convertPaletteToProjectColorSpace");
+        _useRangePercentForLocalLights = serializedObject.FindProperty("useRangePercentForLocalLights");
         _intensityAffectsBands = serializedObject.FindProperty("intensityAffectsBands");
         _bandAccumulation = serializedObject.FindProperty("bandAccumulation");
         _applyFog = serializedObject.FindProperty("applyFog");
@@ -58,17 +66,21 @@ public class PaletteToonControllerEditor : Editor
         EditorGUILayout.PropertyField(_convertPaletteToProjectColorSpace, new GUIContent("Convert Palette To Project Space"));
 
         EditorGUILayout.Space(6f);
-        EditorGUILayout.LabelField("Ramp", EditorStyles.boldLabel);
-        EditorGUILayout.PropertyField(_shadowThreshold, new GUIContent("Shadow Threshold"));
-        EditorGUILayout.PropertyField(_highlightThreshold, new GUIContent("Highlight Threshold"));
+        EditorGUILayout.LabelField("Band Percentages", EditorStyles.boldLabel);
+        EditorGUILayout.PropertyField(_darkBandPercentage, new GUIContent("Dark Band %"));
+        EditorGUILayout.PropertyField(_baseBandPercentage, new GUIContent("Base Band %"));
+        EditorGUILayout.PropertyField(_highlightBandPercentage, new GUIContent("Highlight Band %"));
+
+        ClampBandPercentages();
+        DrawAutoThresholdInfo();
 
         EditorGUILayout.Space(6f);
         EditorGUILayout.LabelField("Lighting Behavior", EditorStyles.boldLabel);
+        EditorGUILayout.PropertyField(_useRangePercentForLocalLights, new GUIContent("Use Range % For Point/Spot"));
         EditorGUILayout.PropertyField(_intensityAffectsBands, new GUIContent("Intensity Affects Bands"));
         EditorGUILayout.PropertyField(_bandAccumulation, new GUIContent("Band Accumulation"));
         EditorGUILayout.PropertyField(_applyFog, new GUIContent("Apply Fog"));
 
-        ClampThresholds();
         ClampIndexesByPaletteSize();
 
         EditorGUILayout.Space(6f);
@@ -196,10 +208,36 @@ public class PaletteToonControllerEditor : Editor
         _activeSlot = null;
     }
 
-    private void ClampThresholds()
+    private void ClampBandPercentages()
     {
-        _shadowThreshold.floatValue = Mathf.Clamp01(_shadowThreshold.floatValue);
-        _highlightThreshold.floatValue = Mathf.Clamp(_highlightThreshold.floatValue, _shadowThreshold.floatValue, 1f);
+        _darkBandPercentage.floatValue = Mathf.Clamp01(_darkBandPercentage.floatValue);
+        _baseBandPercentage.floatValue = Mathf.Clamp01(_baseBandPercentage.floatValue);
+        _highlightBandPercentage.floatValue = Mathf.Clamp01(_highlightBandPercentage.floatValue);
+
+        float total = _darkBandPercentage.floatValue + _baseBandPercentage.floatValue + _highlightBandPercentage.floatValue;
+        if (total <= 0.0001f)
+        {
+            _darkBandPercentage.floatValue = 0.35f;
+            _baseBandPercentage.floatValue = 0.40f;
+            _highlightBandPercentage.floatValue = 0.25f;
+            total = 1f;
+        }
+
+        float darkNorm = _darkBandPercentage.floatValue / total;
+        float baseNorm = _baseBandPercentage.floatValue / total;
+        _shadowThreshold.floatValue = Mathf.Clamp01(darkNorm);
+        _highlightThreshold.floatValue = Mathf.Clamp01(darkNorm + baseNorm);
+    }
+
+    private void DrawAutoThresholdInfo()
+    {
+        EditorGUILayout.BeginHorizontal();
+        using (new EditorGUI.DisabledScope(true))
+        {
+            EditorGUILayout.FloatField("Shadow Threshold", _shadowThreshold.floatValue);
+            EditorGUILayout.FloatField("Highlight Threshold", _highlightThreshold.floatValue);
+        }
+        EditorGUILayout.EndHorizontal();
     }
 
     private void ClampIndexesByPaletteSize()

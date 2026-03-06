@@ -12,6 +12,7 @@ Shader "Custom/PaletteToonRamp"
         _Threshold2("Highlight Threshold", Range(0, 1)) = 0.75
 
         [Header(Lighting Behavior)]
+        _UseRangePercentForLocalLights("Use Range Percent For Local Lights", Range(0, 1)) = 1
         _IntensityAffectsBands("Intensity Affects Bands", Range(0, 1)) = 0
         _BandAccumulation("Band Accumulation (0 Add / 1 Max)", Range(0, 1)) = 1
         _ApplyFog("Apply Fog", Range(0, 1)) = 0
@@ -72,6 +73,7 @@ Shader "Custom/PaletteToonRamp"
             float4 _ColorHighlight;
             float  _Threshold1;
             float  _Threshold2;
+            float  _UseRangePercentForLocalLights;
             float  _IntensityAffectsBands;
             float  _BandAccumulation;
             float  _ApplyFog;
@@ -95,6 +97,45 @@ Shader "Custom/PaletteToonRamp"
                 float geometric = saturate(NdotL) * distanceAttenuation * shadowAttenuation;
                 float withIntensity = geometric * Luminance3(lightColor);
                 return lerp(geometric, withIntensity, _IntensityAffectsBands);
+            }
+
+            int ResolveAdditionalLightIndex(uint loopIndex)
+            {
+            #if USE_CLUSTER_LIGHT_LOOP
+                return (int)loopIndex;
+            #else
+                return GetPerObjectLightIndex(loopIndex);
+            #endif
+            }
+
+            float LocalLightRangeSignal(uint loopIndex, float3 positionWS, float distanceAttenuation)
+            {
+                int lightIndex = ResolveAdditionalLightIndex(loopIndex);
+
+            #if USE_STRUCTURED_BUFFER_FOR_LIGHT_DATA
+                float4 lightPositionWS = _AdditionalLightsBuffer[lightIndex].position;
+                half4 distanceAndSpotAttenuation = _AdditionalLightsBuffer[lightIndex].attenuation;
+            #else
+                float4 lightPositionWS = _AdditionalLightsPosition[lightIndex];
+                half4 distanceAndSpotAttenuation = _AdditionalLightsAttenuation[lightIndex];
+            #endif
+
+                if (lightPositionWS.w == 0.0)
+                {
+                    return 1.0;
+                }
+
+                float3 lightVector = lightPositionWS.xyz - positionWS * lightPositionWS.w;
+                float distanceSqr = max(dot(lightVector, lightVector), HALF_MIN);
+
+                float invRangeSq = max((float)distanceAndSpotAttenuation.x, 1e-6);
+                float normalizedDistance = saturate(sqrt(distanceSqr * invRangeSq));
+                float rangeSignal = 1.0 - normalizedDistance;
+
+                float distanceOnly = DistanceAttenuation(distanceSqr, distanceAndSpotAttenuation.xy);
+                float spotSignal = saturate(distanceAttenuation / max(distanceOnly, 1e-5));
+
+                return saturate(rangeSignal * spotSignal);
             }
 
             Varyings vert(Attributes input)
@@ -141,7 +182,15 @@ Shader "Custom/PaletteToonRamp"
                     LIGHT_LOOP_BEGIN(count)
                         // Use overload with shadow mask so point/spot shadows are applied.
                         Light l = GetAdditionalLight(lightIndex, input.positionWS, half4(1.0, 1.0, 1.0, 1.0));
-                        float addBand = BandContribution(dot(N, l.direction), l.distanceAttenuation, l.shadowAttenuation, l.color);
+                        float addBand;
+                        if (_UseRangePercentForLocalLights > 0.5)
+                        {
+                            addBand = LocalLightRangeSignal(lightIndex, input.positionWS, l.distanceAttenuation) * l.shadowAttenuation;
+                        }
+                        else
+                        {
+                            addBand = BandContribution(dot(N, l.direction), l.distanceAttenuation, l.shadowAttenuation, l.color);
+                        }
                         totalLight = useAdditive ? (totalLight + addBand) : max(totalLight, addBand);
                     LIGHT_LOOP_END
                 }
