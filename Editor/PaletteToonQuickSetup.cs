@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using UnityEditor;
 using UnityEngine;
+using UnityEngine.Rendering;
 
 public static class PaletteToonQuickSetup
 {
@@ -11,15 +12,6 @@ public static class PaletteToonQuickSetup
     [MenuItem("Tools/Palette Toon/Create Local Material Preset", priority = 2000)]
     private static void CreateLocalMaterialPreset()
     {
-        Material existing = AssetDatabase.LoadAssetAtPath<Material>(DefaultLocalMaterialPath);
-        if (existing != null)
-        {
-            Selection.activeObject = existing;
-            EditorGUIUtility.PingObject(existing);
-            Debug.Log("Palette Toon: local material already exists at Assets/Materials/PaletteToonRamp.mat");
-            return;
-        }
-
         Material packageMaterial = AssetDatabase.LoadAssetAtPath<Material>(PackageMaterialPath);
         if (packageMaterial == null)
         {
@@ -29,22 +21,44 @@ public static class PaletteToonQuickSetup
 
         EnsureFolder("Assets/Materials");
 
-        Material localMaterial = new Material(packageMaterial)
+        Material localMaterial = AssetDatabase.LoadAssetAtPath<Material>(DefaultLocalMaterialPath);
+        if (localMaterial == null)
         {
-            name = "PaletteToonRamp"
-        };
+            localMaterial = new Material(packageMaterial)
+            {
+                name = "PaletteToonRamp"
+            };
+            AssetDatabase.CreateAsset(localMaterial, DefaultLocalMaterialPath);
+        }
+        else
+        {
+            localMaterial.shader = packageMaterial.shader;
+            localMaterial.CopyPropertiesFromMaterial(packageMaterial);
+            EditorUtility.SetDirty(localMaterial);
+        }
 
-        AssetDatabase.CreateAsset(localMaterial, DefaultLocalMaterialPath);
         AssetDatabase.SaveAssets();
 
         Selection.activeObject = localMaterial;
         EditorGUIUtility.PingObject(localMaterial);
-        Debug.Log("Palette Toon: created local material at Assets/Materials/PaletteToonRamp.mat");
+        Debug.Log("Palette Toon: local material is ready at Assets/Materials/PaletteToonRamp.mat");
     }
 
     [MenuItem("Tools/Palette Toon/Apply To Selected Renderers", priority = 2001)]
     private static void ApplyToSelectedRenderers()
     {
+        if (!IsUrpActive())
+        {
+            const string message = "Palette Toon requires URP as the active render pipeline.\n\n" +
+                                   "Fix:\n" +
+                                   "1) Install URP package\n" +
+                                   "2) Create a URP Pipeline Asset\n" +
+                                   "3) Assign it in Project Settings > Graphics and Project Settings > Quality";
+            EditorUtility.DisplayDialog("Palette Toon - URP Required", message, "OK");
+            Debug.LogError("Palette Toon: URP is not active. Assign a Universal Render Pipeline Asset in Graphics/Quality settings.");
+            return;
+        }
+
         Material material = GetPreferredMaterial();
         if (material == null)
         {
@@ -109,7 +123,7 @@ public static class PaletteToonQuickSetup
     private static Material GetPreferredMaterial()
     {
         Material local = AssetDatabase.LoadAssetAtPath<Material>(DefaultLocalMaterialPath);
-        if (local != null)
+        if (local != null && local.shader != null && local.shader.name == "Custom/PaletteToonRamp")
         {
             return local;
         }
@@ -160,5 +174,16 @@ public static class PaletteToonQuickSetup
 
             current = next;
         }
+    }
+
+    private static bool IsUrpActive()
+    {
+        RenderPipelineAsset current = GraphicsSettings.currentRenderPipeline;
+        if (current == null)
+        {
+            return false;
+        }
+
+        return current.GetType().Name.Contains("UniversalRenderPipelineAsset");
     }
 }

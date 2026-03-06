@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.1.2
+
+- Added URP active-pipeline validation in `Tools > Palette Toon > Apply To Selected Renderers`.
+- Added auto-repair/update behavior for `Assets/Materials/PaletteToonRamp.mat` in `Create Local Material Preset`.
+- Prevented invalid local materials from being preferred over valid package material.
+
 ## 1.1.1
 
 - Added missing `.meta` files for package files and folders.
