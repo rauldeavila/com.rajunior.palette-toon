@@ -25,6 +25,9 @@ Material:
     m_TexEnvs: []
     m_Ints: []
     m_Floats:
+    - _ApplyFog: 0
+    - _BandAccumulation: 1
+    - _IntensityAffectsBands: 0
     - _Threshold1: 0.35
     - _Threshold2: 0.75
     m_Colors:

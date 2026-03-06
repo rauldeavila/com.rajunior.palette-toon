@@ -10,6 +10,11 @@ Shader "Custom/PaletteToonRamp"
 
         _Threshold1("Shadow Threshold", Range(0, 1)) = 0.35
         _Threshold2("Highlight Threshold", Range(0, 1)) = 0.75
+
+        [Header(Lighting Behavior)]
+        _IntensityAffectsBands("Intensity Affects Bands", Range(0, 1)) = 0
+        _BandAccumulation("Band Accumulation (0 Add / 1 Max)", Range(0, 1)) = 1
+        _ApplyFog("Apply Fog", Range(0, 1)) = 0
     }
 
     SubShader
@@ -67,6 +72,9 @@ Shader "Custom/PaletteToonRamp"
             float4 _ColorHighlight;
             float  _Threshold1;
             float  _Threshold2;
+            float  _IntensityAffectsBands;
+            float  _BandAccumulation;
+            float  _ApplyFog;
 
             // perceptual luminance — extracts brightness from a light's color
             // (light.color already includes intensity in URP)
@@ -80,6 +88,13 @@ Shader "Custom/PaletteToonRamp"
                 if (intensity < _Threshold1)  return _ColorShadow.rgb;
                 if (intensity < _Threshold2)  return _ColorBase.rgb;
                 return _ColorHighlight.rgb;
+            }
+
+            float BandContribution(float NdotL, float distanceAttenuation, float shadowAttenuation, float3 lightColor)
+            {
+                float geometric = saturate(NdotL) * distanceAttenuation * shadowAttenuation;
+                float withIntensity = geometric * Luminance3(lightColor);
+                return lerp(geometric, withIntensity, _IntensityAffectsBands);
             }
 
             Varyings vert(Attributes input)
@@ -99,6 +114,7 @@ Shader "Custom/PaletteToonRamp"
             {
                 float3 N = normalize(input.normalWS);
                 float totalLight = 0.0;
+                bool useAdditive = (_BandAccumulation < 0.5);
 
                 // ── main light ──
             #if defined(_MAIN_LIGHT_SHADOWS) || defined(_MAIN_LIGHT_SHADOWS_CASCADE) || defined(_MAIN_LIGHT_SHADOWS_SCREEN)
@@ -108,10 +124,8 @@ Shader "Custom/PaletteToonRamp"
                 Light mainLight = GetMainLight();
             #endif
 
-                totalLight += saturate(dot(N, mainLight.direction))
-                            * mainLight.distanceAttenuation
-                            * mainLight.shadowAttenuation
-                            * Luminance3(mainLight.color);
+                float mainBand = BandContribution(dot(N, mainLight.direction), mainLight.distanceAttenuation, mainLight.shadowAttenuation, mainLight.color);
+                totalLight = useAdditive ? (totalLight + mainBand) : max(totalLight, mainBand);
 
                 // ── additional lights (point / spot / extra directional) ──
                 // No #if guard — always runs. GetAdditionalLightsCount()
@@ -127,17 +141,16 @@ Shader "Custom/PaletteToonRamp"
                     LIGHT_LOOP_BEGIN(count)
                         // Use overload with shadow mask so point/spot shadows are applied.
                         Light l = GetAdditionalLight(lightIndex, input.positionWS, half4(1.0, 1.0, 1.0, 1.0));
-                        totalLight += saturate(dot(N, l.direction))
-                                    * l.distanceAttenuation
-                                    * l.shadowAttenuation
-                                    * Luminance3(l.color);
+                        float addBand = BandContribution(dot(N, l.direction), l.distanceAttenuation, l.shadowAttenuation, l.color);
+                        totalLight = useAdditive ? (totalLight + addBand) : max(totalLight, addBand);
                     LIGHT_LOOP_END
                 }
 
                 totalLight = saturate(totalLight);
 
                 float3 color = ToonRamp(totalLight) * _BaseColor.rgb;
-                color = MixFog(color, input.fogCoord);
+                float3 fogged = MixFog(color, input.fogCoord);
+                color = lerp(color, fogged, _ApplyFog);
                 return float4(color, 1.0);
             }
             ENDHLSL

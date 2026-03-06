@@ -20,12 +20,17 @@ public class PaletteToonControllerEditor : Editor
     private SerializedProperty _shadowThreshold;
     private SerializedProperty _highlightThreshold;
     private SerializedProperty _baseTint;
+    private SerializedProperty _convertPaletteToProjectColorSpace;
+    private SerializedProperty _intensityAffectsBands;
+    private SerializedProperty _bandAccumulation;
+    private SerializedProperty _applyFog;
 
     private ActiveSlot? _activeSlot = null;
     private Texture2D _cachedTexture;
     private Color[] _cachedColors;
     private int _cachedWidth;
     private int _cachedHeight;
+    private bool _cachedConvertToProjectColorSpace;
 
     private void OnEnable()
     {
@@ -37,6 +42,10 @@ public class PaletteToonControllerEditor : Editor
         _shadowThreshold = serializedObject.FindProperty("shadowThreshold");
         _highlightThreshold = serializedObject.FindProperty("highlightThreshold");
         _baseTint = serializedObject.FindProperty("baseTint");
+        _convertPaletteToProjectColorSpace = serializedObject.FindProperty("convertPaletteToProjectColorSpace");
+        _intensityAffectsBands = serializedObject.FindProperty("intensityAffectsBands");
+        _bandAccumulation = serializedObject.FindProperty("bandAccumulation");
+        _applyFog = serializedObject.FindProperty("applyFog");
     }
 
     public override void OnInspectorGUI()
@@ -46,11 +55,18 @@ public class PaletteToonControllerEditor : Editor
         EditorGUILayout.PropertyField(_targetRenderer);
         EditorGUILayout.PropertyField(_paletteTexture);
         EditorGUILayout.PropertyField(_baseTint);
+        EditorGUILayout.PropertyField(_convertPaletteToProjectColorSpace, new GUIContent("Convert Palette To Project Space"));
 
         EditorGUILayout.Space(6f);
         EditorGUILayout.LabelField("Ramp", EditorStyles.boldLabel);
         EditorGUILayout.PropertyField(_shadowThreshold, new GUIContent("Shadow Threshold"));
         EditorGUILayout.PropertyField(_highlightThreshold, new GUIContent("Highlight Threshold"));
+
+        EditorGUILayout.Space(6f);
+        EditorGUILayout.LabelField("Lighting Behavior", EditorStyles.boldLabel);
+        EditorGUILayout.PropertyField(_intensityAffectsBands, new GUIContent("Intensity Affects Bands"));
+        EditorGUILayout.PropertyField(_bandAccumulation, new GUIContent("Band Accumulation"));
+        EditorGUILayout.PropertyField(_applyFog, new GUIContent("Apply Fog"));
 
         ClampThresholds();
         ClampIndexesByPaletteSize();
@@ -218,7 +234,12 @@ public class PaletteToonControllerEditor : Editor
 
     private void RefreshPaletteCache(Texture2D texture)
     {
-        if (texture == _cachedTexture && _cachedColors != null)
+        bool convertToProjectSpace = _convertPaletteToProjectColorSpace != null &&
+                                     _convertPaletteToProjectColorSpace.boolValue;
+
+        if (texture == _cachedTexture &&
+            _cachedColors != null &&
+            _cachedConvertToProjectColorSpace == convertToProjectSpace)
         {
             return;
         }
@@ -227,6 +248,7 @@ public class PaletteToonControllerEditor : Editor
         _cachedColors = null;
         _cachedWidth = 0;
         _cachedHeight = 0;
+        _cachedConvertToProjectColorSpace = convertToProjectSpace;
 
         if (texture == null)
         {
@@ -249,8 +271,27 @@ public class PaletteToonControllerEditor : Editor
 
         _cachedWidth = temp.width;
         _cachedHeight = temp.height;
-        _cachedColors = temp.GetPixels();
+        _cachedColors = ConvertPaletteToProjectSpace(temp.GetPixels32(), convertToProjectSpace);
         Object.DestroyImmediate(temp);
+    }
+
+    private static Color[] ConvertPaletteToProjectSpace(Color32[] source, bool convertToProjectSpace)
+    {
+        if (source == null || source.Length == 0)
+        {
+            return null;
+        }
+
+        Color[] converted = new Color[source.Length];
+        bool linearProject = convertToProjectSpace && QualitySettings.activeColorSpace == ColorSpace.Linear;
+
+        for (int i = 0; i < source.Length; i++)
+        {
+            Color c = source[i];
+            converted[i] = linearProject ? c.linear : c;
+        }
+
+        return converted;
     }
 
     private static void DrawOutline(Rect rect, Color color)

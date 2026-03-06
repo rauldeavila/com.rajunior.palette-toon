@@ -32,3 +32,8 @@ Optional:
 - Point/spot/directional shadows are supported.
 - For palette color fidelity, keep tonemapping disabled in your scene volume.
 - The palette postprocessor enforces point filtering and uncompressed import under `/Palettes/`.
+- `Palette Toon Controller` exposes lighting controls for stable local-light behavior:
+  - `Intensity Affects Bands` (default off)
+  - `Band Accumulation` (default `Max`)
+  - `Apply Fog` (default off)
+- For color-space matching in Linear projects, keep `Convert Palette To Project Space` enabled (default on).

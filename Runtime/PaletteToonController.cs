@@ -13,6 +13,15 @@ public class PaletteToonController : MonoBehaviour
     private static readonly int ColorHighlightId = Shader.PropertyToID("_ColorHighlight");
     private static readonly int Threshold1Id     = Shader.PropertyToID("_Threshold1");
     private static readonly int Threshold2Id     = Shader.PropertyToID("_Threshold2");
+    private static readonly int IntensityAffectsBandsId = Shader.PropertyToID("_IntensityAffectsBands");
+    private static readonly int BandAccumulationId      = Shader.PropertyToID("_BandAccumulation");
+    private static readonly int ApplyFogId              = Shader.PropertyToID("_ApplyFog");
+
+    public enum BandAccumulationMode
+    {
+        Add = 0,
+        Max = 1
+    }
 
     [Header("Target")]
     public Renderer targetRenderer;
@@ -32,11 +41,21 @@ public class PaletteToonController : MonoBehaviour
     [Header("Tint")]
     public Color baseTint = Color.white;
 
+    [Header("Color Fidelity")]
+    [Tooltip("Converts palette colors from sRGB to project color space (recommended for Linear projects).")]
+    public bool convertPaletteToProjectColorSpace = true;
+
+    [Header("Lighting Behavior")]
+    [Range(0f, 1f)] public float intensityAffectsBands = 0f;
+    public BandAccumulationMode bandAccumulation = BandAccumulationMode.Max;
+    public bool applyFog = false;
+
     private MaterialPropertyBlock _mpb;
 
     // palette cache (already converted for current project color space)
     private Texture2D _cachedPalette;
     private Color[] _cachedColors;
+    private bool _cachedConvertToProjectColorSpace;
 
     private void Reset()
     {
@@ -61,6 +80,7 @@ public class PaletteToonController : MonoBehaviour
     {
         shadowThreshold    = Mathf.Clamp01(shadowThreshold);
         highlightThreshold = Mathf.Clamp(highlightThreshold, shadowThreshold, 1f);
+        intensityAffectsBands = Mathf.Clamp01(intensityAffectsBands);
         Apply();
     }
 
@@ -96,6 +116,9 @@ public class PaletteToonController : MonoBehaviour
         _mpb.SetColor(BaseColorId,       baseTint);
         _mpb.SetFloat(Threshold1Id,      shadowThreshold);
         _mpb.SetFloat(Threshold2Id,      highlightThreshold);
+        _mpb.SetFloat(IntensityAffectsBandsId, intensityAffectsBands);
+        _mpb.SetFloat(BandAccumulationId, (float)bandAccumulation);
+        _mpb.SetFloat(ApplyFogId, applyFog ? 1f : 0f);
 
         targetRenderer.SetPropertyBlock(_mpb);
     }
@@ -104,11 +127,16 @@ public class PaletteToonController : MonoBehaviour
 
     private void RefreshPaletteCache()
     {
-        if (paletteTexture == _cachedPalette && _cachedColors != null)
+        if (paletteTexture == _cachedPalette &&
+            _cachedColors != null &&
+            _cachedConvertToProjectColorSpace == convertPaletteToProjectColorSpace)
+        {
             return;
+        }
 
         _cachedPalette = paletteTexture;
         _cachedColors  = null;
+        _cachedConvertToProjectColorSpace = convertPaletteToProjectColorSpace;
 
         if (paletteTexture == null) return;
 
@@ -148,13 +176,14 @@ public class PaletteToonController : MonoBehaviour
         return 255;
     }
 
-    private static Color[] ConvertPaletteToProjectSpace(Color32[] source)
+    private Color[] ConvertPaletteToProjectSpace(Color32[] source)
     {
         if (source == null || source.Length == 0)
             return null;
 
         Color[] converted = new Color[source.Length];
-        bool linearProject = QualitySettings.activeColorSpace == ColorSpace.Linear;
+        bool linearProject = convertPaletteToProjectColorSpace &&
+                             QualitySettings.activeColorSpace == ColorSpace.Linear;
 
         for (int i = 0; i < source.Length; i++)
         {

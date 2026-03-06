@@ -1,5 +1,18 @@
 # Changelog
 
+## 1.2.0
+
+- Added explicit lighting-behavior controls on `PaletteToonController`:
+  - `Intensity Affects Bands`
+  - `Band Accumulation` (`Add` / `Max`)
+  - `Apply Fog`
+- Defaulted toon band behavior to stable setup for point/spot lights:
+  - intensity does not shift bands by default
+  - additional lights use `Max` accumulation by default (instead of additive blowout)
+- Added `Convert Palette To Project Space` toggle on `PaletteToonController` for color-space control.
+- Updated `PaletteToonControllerEditor` palette preview to use the same project-space conversion path as runtime, reducing Inspector-vs-Game color mismatch.
+- Updated bundled material preset defaults for the new shader properties.
+
 ## 1.1.2
 
 - Added URP active-pipeline validation in `Tools > Palette Toon > Apply To Selected Renderers`.

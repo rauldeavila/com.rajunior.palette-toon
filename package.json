@@ -1,8 +1,8 @@
 {
   "name": "com.rajunior.palette-toon",
-  "version": "1.1.2",
+  "version": "1.2.0",
   "displayName": "Palette Toon URP",
-  "description": "URP toon shader with bundled material + ENDESGA palette, one-click setup tools, and shadow support for directional/point/spot lights.",
+  "description": "URP toon shader with bundled material + ENDESGA palette, one-click setup tools, shadow support for directional/point/spot lights, and stable toon bands for local lights.",
   "unity": "6000.0",
   "keywords": [
     "toon",
