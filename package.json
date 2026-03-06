@@ -1,0 +1,27 @@
+{
+  "name": "com.rajunior.palette-toon",
+  "version": "1.0.0",
+  "displayName": "Palette Toon URP",
+  "description": "URP toon shader with 3-color palette ramp, controller tooling, and shadow support for directional/point/spot lights.",
+  "unity": "6000.0",
+  "keywords": [
+    "toon",
+    "palette",
+    "shader",
+    "urp",
+    "stylized"
+  ],
+  "author": {
+    "name": "rajunior"
+  },
+  "dependencies": {
+    "com.unity.render-pipelines.universal": "17.3.0"
+  },
+  "samples": [
+    {
+      "displayName": "Starter Palette",
+      "description": "ENDESGA 64 1x palette texture used by the controller.",
+      "path": "Samples~/Starter"
+    }
+  ]
+}
