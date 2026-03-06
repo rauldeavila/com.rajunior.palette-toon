@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.1.1
+
+- Added missing `.meta` files for package files and folders.
+- Fixed Unity import errors in immutable `Packages/com.rajunior.palette-toon` installations.
+
 ## 1.1.0
 
 - Bundled `Runtime/Materials/PaletteToonRamp.mat` as a ready-to-use material.
