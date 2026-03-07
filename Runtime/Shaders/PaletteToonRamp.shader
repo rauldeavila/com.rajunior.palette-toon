@@ -93,9 +93,12 @@ Shader "Custom/PaletteToonRamp"
             float BandContribution(float NdotL, float distanceAttenuation, float shadowAttenuation, float3 lightColor)
             {
                 float shadow = smoothstep(0.0, 0.05, shadowAttenuation);
-                float geometric = saturate(NdotL) * distanceAttenuation * shadow;
-                float withIntensity = geometric * Luminance3(lightColor);
-                return lerp(geometric, withIntensity, _IntensityAffectsBands);
+                float unshadowed = saturate(NdotL) * distanceAttenuation;
+                float withIntensity = unshadowed * Luminance3(lightColor);
+                float lit = lerp(unshadowed, withIntensity, _IntensityAffectsBands);
+                // shadow drops one band instead of zeroing the signal
+                float shadowDrop = (1.0 - shadow) * _Threshold1;
+                return max(0.0, lit - shadowDrop);
             }
 
             int ResolveAdditionalLightIndex(uint loopIndex)
@@ -185,12 +188,15 @@ Shader "Custom/PaletteToonRamp"
                         float localRange = LocalLightRangeSignal(lightIndex, input.positionWS, l.distanceAttenuation);
                         if (localRange >= 0.0)
                         {
-                            // Point/Spot: N·L × linear range × shadow — bands match the light gizmo
+                            // Point/Spot: N·L × linear range — bands match the light gizmo
                             float NdotL = saturate(dot(N, l.direction));
                             float shadow = smoothstep(0.0, 0.05, l.shadowAttenuation);
-                            float combined = NdotL * localRange * shadow;
-                            float withIntensity = combined * Luminance3(l.color);
-                            addBand = lerp(combined, withIntensity, _IntensityAffectsBands);
+                            float unshadowed = NdotL * localRange;
+                            float withIntensity = unshadowed * Luminance3(l.color);
+                            float lit = lerp(unshadowed, withIntensity, _IntensityAffectsBands);
+                            // shadow drops one band instead of zeroing the signal
+                            float shadowDrop = (1.0 - shadow) * _Threshold1;
+                            addBand = max(0.0, lit - shadowDrop);
                         }
                         else
                         {

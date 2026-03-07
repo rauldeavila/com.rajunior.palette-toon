@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.4.2
+
+- **Shader**: Shadows now step down one band instead of zeroing the signal — highlight in shadow shows base, base in shadow shows shadow color. Creates layered toon shadow depth.
+
 ## 1.4.1
 
 - **Shader**: `Intensity Affects Bands` now defaults to `1` — light brightness intuitively scales band reach.
