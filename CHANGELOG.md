@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.5.0
+
+- **Performance**: SRP Batcher compatible — shader properties moved into `CBUFFER_START(UnityPerMaterial)`, per-object colors now use material instances instead of `MaterialPropertyBlock`.
+- **Runtime**: Material instance is created automatically on enable and cleaned up on disable/destroy, restoring the original shared material.
+
 ## 1.4.3
 
 - **Shader**: Fixed shadow band alignment — shadow drop now uses `Threshold2 - Threshold1` so shadow boundaries align exactly with light band boundaries.

@@ -63,18 +63,17 @@ Shader "Custom/PaletteToonRamp"
                 float  fogCoord    : TEXCOORD2;
             };
 
-            // NOTE: declared OUTSIDE UnityPerMaterial CBUFFER on purpose.
-            // This disables SRP Batcher for this shader so that
-            // MaterialPropertyBlock overrides actually reach the GPU.
-            float4 _BaseColor;
-            float4 _ColorShadow;
-            float4 _ColorBase;
-            float4 _ColorHighlight;
-            float  _Threshold1;
-            float  _Threshold2;
-            float  _IntensityAffectsBands;
-            float  _BandAccumulation;
-            float  _ApplyFog;
+            CBUFFER_START(UnityPerMaterial)
+                float4 _BaseColor;
+                float4 _ColorShadow;
+                float4 _ColorBase;
+                float4 _ColorHighlight;
+                float  _Threshold1;
+                float  _Threshold2;
+                float  _IntensityAffectsBands;
+                float  _BandAccumulation;
+                float  _ApplyFog;
+            CBUFFER_END
 
             // perceptual luminance — extracts brightness from a light's color
             // (light.color already includes intensity in URP)

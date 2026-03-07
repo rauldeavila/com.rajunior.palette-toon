@@ -52,7 +52,9 @@ public class PaletteToonController : MonoBehaviour
     public BandAccumulationMode bandAccumulation = BandAccumulationMode.Max;
     public bool applyFog = false;
 
-    private MaterialPropertyBlock _mpb;
+    private Material _materialInstance;
+    private Material _originalSharedMaterial;
+    private Renderer _instancedRenderer;
 
     // palette cache (already converted for current project color space)
     private Texture2D _cachedPalette;
@@ -71,11 +73,12 @@ public class PaletteToonController : MonoBehaviour
 
     private void OnDisable()
     {
-        // clear overrides so the renderer goes back to material defaults
-        if (targetRenderer != null)
-        {
-            targetRenderer.SetPropertyBlock(null);
-        }
+        ReleaseMaterialInstance();
+    }
+
+    private void OnDestroy()
+    {
+        ReleaseMaterialInstance();
     }
 
     private void OnValidate()
@@ -85,7 +88,7 @@ public class PaletteToonController : MonoBehaviour
         Apply();
     }
 
-    // ── apply all properties via MaterialPropertyBlock ──
+    // ── apply all properties via material instance (SRP Batcher compatible) ──
 
     public void Apply()
     {
@@ -95,8 +98,8 @@ public class PaletteToonController : MonoBehaviour
             if (targetRenderer == null) return;
         }
 
-        if (_mpb == null)
-            _mpb = new MaterialPropertyBlock();
+        EnsureMaterialInstance();
+        if (_materialInstance == null) return;
 
         try { RefreshPaletteCache(); }
         catch (System.Exception e)
@@ -109,21 +112,59 @@ public class PaletteToonController : MonoBehaviour
         baseColorIndex      = Mathf.Clamp(baseColorIndex, 0, maxIndex);
         highlightColorIndex = Mathf.Clamp(highlightColorIndex, 0, maxIndex);
 
-        targetRenderer.GetPropertyBlock(_mpb);
-
         NormalizeBandPercentages(out shadowThreshold, out highlightThreshold);
 
-        _mpb.SetColor(ColorShadowId,     GetCachedColor(shadowColorIndex));
-        _mpb.SetColor(ColorBaseId,       GetCachedColor(baseColorIndex));
-        _mpb.SetColor(ColorHighlightId,  GetCachedColor(highlightColorIndex));
-        _mpb.SetColor(BaseColorId,       baseTint);
-        _mpb.SetFloat(Threshold1Id,      shadowThreshold);
-        _mpb.SetFloat(Threshold2Id,      highlightThreshold);
-        _mpb.SetFloat(IntensityAffectsBandsId, intensityAffectsBands);
-        _mpb.SetFloat(BandAccumulationId, (float)bandAccumulation);
-        _mpb.SetFloat(ApplyFogId, applyFog ? 1f : 0f);
+        _materialInstance.SetColor(ColorShadowId,     GetCachedColor(shadowColorIndex));
+        _materialInstance.SetColor(ColorBaseId,       GetCachedColor(baseColorIndex));
+        _materialInstance.SetColor(ColorHighlightId,  GetCachedColor(highlightColorIndex));
+        _materialInstance.SetColor(BaseColorId,       baseTint);
+        _materialInstance.SetFloat(Threshold1Id,      shadowThreshold);
+        _materialInstance.SetFloat(Threshold2Id,      highlightThreshold);
+        _materialInstance.SetFloat(IntensityAffectsBandsId, intensityAffectsBands);
+        _materialInstance.SetFloat(BandAccumulationId, (float)bandAccumulation);
+        _materialInstance.SetFloat(ApplyFogId, applyFog ? 1f : 0f);
+    }
 
-        targetRenderer.SetPropertyBlock(_mpb);
+    // ── material instance lifecycle ──
+
+    private void EnsureMaterialInstance()
+    {
+        // If renderer changed, release old instance first
+        if (_instancedRenderer != null && _instancedRenderer != targetRenderer)
+        {
+            ReleaseMaterialInstance();
+        }
+
+        if (_materialInstance != null) return;
+
+        Material shared = targetRenderer.sharedMaterial;
+        if (shared == null) return;
+
+        _originalSharedMaterial = shared;
+        _instancedRenderer = targetRenderer;
+        _materialInstance = new Material(shared);
+        _materialInstance.name = shared.name + " (Instance)";
+        targetRenderer.material = _materialInstance;
+    }
+
+    private void ReleaseMaterialInstance()
+    {
+        if (_instancedRenderer != null && _originalSharedMaterial != null)
+        {
+            _instancedRenderer.sharedMaterial = _originalSharedMaterial;
+        }
+
+        if (_materialInstance != null)
+        {
+            if (Application.isPlaying)
+                Destroy(_materialInstance);
+            else
+                DestroyImmediate(_materialInstance);
+        }
+
+        _materialInstance = null;
+        _originalSharedMaterial = null;
+        _instancedRenderer = null;
     }
 
     // ── palette cache ──
