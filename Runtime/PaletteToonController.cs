@@ -48,7 +48,7 @@ public class PaletteToonController : MonoBehaviour
     [Header("Advanced")]
     [Tooltip("Converts palette colors from sRGB to project color space.")]
     public bool convertPaletteToProjectColorSpace = false;
-    [Range(0f, 1f)] public float intensityAffectsBands = 0f;
+    [Range(0f, 1f)] public float intensityAffectsBands = 1f;
     public BandAccumulationMode bandAccumulation = BandAccumulationMode.Max;
     public bool applyFog = false;
 

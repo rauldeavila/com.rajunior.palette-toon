@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.4.1
+
+- **Shader**: `Intensity Affects Bands` now defaults to `1` — light brightness intuitively scales band reach.
+- **Shader**: Smoothed shadow edges with `smoothstep` to eliminate crackly artifacts from low-resolution shadow maps.
+
 ## 1.4.0
 
 - **Shader**: Point/spot lights now combine surface orientation (N·L) with linear range falloff — bands match the light gizmo and respond to surface facing direction.

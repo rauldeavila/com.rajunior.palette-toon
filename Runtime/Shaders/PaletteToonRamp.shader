@@ -12,7 +12,7 @@ Shader "Custom/PaletteToonRamp"
         _Threshold2("Highlight Threshold", Range(0, 1)) = 0.75
 
         [Header(Lighting Behavior)]
-        _IntensityAffectsBands("Intensity Affects Bands", Range(0, 1)) = 0
+        _IntensityAffectsBands("Intensity Affects Bands", Range(0, 1)) = 1
         _BandAccumulation("Band Accumulation (0 Add / 1 Max)", Range(0, 1)) = 1
         _ApplyFog("Apply Fog", Range(0, 1)) = 0
     }
@@ -92,7 +92,8 @@ Shader "Custom/PaletteToonRamp"
 
             float BandContribution(float NdotL, float distanceAttenuation, float shadowAttenuation, float3 lightColor)
             {
-                float geometric = saturate(NdotL) * distanceAttenuation * shadowAttenuation;
+                float shadow = smoothstep(0.0, 0.05, shadowAttenuation);
+                float geometric = saturate(NdotL) * distanceAttenuation * shadow;
                 float withIntensity = geometric * Luminance3(lightColor);
                 return lerp(geometric, withIntensity, _IntensityAffectsBands);
             }
@@ -186,7 +187,8 @@ Shader "Custom/PaletteToonRamp"
                         {
                             // Point/Spot: N·L × linear range × shadow — bands match the light gizmo
                             float NdotL = saturate(dot(N, l.direction));
-                            float combined = NdotL * localRange * l.shadowAttenuation;
+                            float shadow = smoothstep(0.0, 0.05, l.shadowAttenuation);
+                            float combined = NdotL * localRange * shadow;
                             float withIntensity = combined * Luminance3(l.color);
                             addBand = lerp(combined, withIntensity, _IntensityAffectsBands);
                         }
