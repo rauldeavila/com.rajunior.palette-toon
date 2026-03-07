@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.4.3
+
+- **Shader**: Fixed shadow band alignment — shadow drop now uses `Threshold2 - Threshold1` so shadow boundaries align exactly with light band boundaries.
+
 ## 1.4.2
 
 - **Shader**: Shadows now step down one band instead of zeroing the signal — highlight in shadow shows base, base in shadow shows shadow color. Creates layered toon shadow depth.

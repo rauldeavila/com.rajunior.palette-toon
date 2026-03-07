@@ -97,7 +97,7 @@ Shader "Custom/PaletteToonRamp"
                 float withIntensity = unshadowed * Luminance3(lightColor);
                 float lit = lerp(unshadowed, withIntensity, _IntensityAffectsBands);
                 // shadow drops one band instead of zeroing the signal
-                float shadowDrop = (1.0 - shadow) * _Threshold1;
+                float shadowDrop = (1.0 - shadow) * (_Threshold2 - _Threshold1);
                 return max(0.0, lit - shadowDrop);
             }
 
@@ -195,7 +195,7 @@ Shader "Custom/PaletteToonRamp"
                             float withIntensity = unshadowed * Luminance3(l.color);
                             float lit = lerp(unshadowed, withIntensity, _IntensityAffectsBands);
                             // shadow drops one band instead of zeroing the signal
-                            float shadowDrop = (1.0 - shadow) * _Threshold1;
+                            float shadowDrop = (1.0 - shadow) * (_Threshold2 - _Threshold1);
                             addBand = max(0.0, lit - shadowDrop);
                         }
                         else
