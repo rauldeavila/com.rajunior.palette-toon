@@ -259,6 +259,7 @@ Shader "Custom/PaletteToonRamp"
             {
                 float4 positionOS : POSITION;
                 float3 normalOS   : NORMAL;
+                float4 tangentOS  : TANGENT;
             };
 
             struct OutlineVaryings
@@ -271,8 +272,14 @@ Shader "Custom/PaletteToonRamp"
                 OutlineVaryings o;
                 o.positionHCS = TransformObjectToHClip(input.positionOS.xyz);
 
+                // use smoothed normals from tangent channel when available,
+                // fall back to regular normals otherwise
+                float3 outlineNormalOS = (dot(input.tangentOS.xyz, input.tangentOS.xyz) > 0.001)
+                    ? input.tangentOS.xyz
+                    : input.normalOS;
+
                 // expand in clip-space along the screen-projected normal
-                float3 normalCS = TransformWorldToHClipDir(TransformObjectToWorldNormal(input.normalOS));
+                float3 normalCS = TransformWorldToHClipDir(TransformObjectToWorldNormal(outlineNormalOS));
                 float2 offset = normalize(normalCS.xy) * _OutlineWidth * _OutlineEnabled;
                 // scale by w so the width is consistent regardless of depth
                 o.positionHCS.xy += offset * o.positionHCS.w;

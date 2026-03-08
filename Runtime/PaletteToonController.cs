@@ -144,6 +144,8 @@ public class PaletteToonController : MonoBehaviour
         EnsureMaterialInstance();
         if (_materialInstance == null) return;
 
+        EnsureOutlineSmoother();
+
         try { RefreshPaletteCache(); }
         catch (System.Exception e)
         {
@@ -169,6 +171,21 @@ public class PaletteToonController : MonoBehaviour
         _materialInstance.SetFloat(OutlineEnabledId, enableOutline ? 1f : 0f);
         _materialInstance.SetFloat(OutlineWidthId, outlineWidth);
         _materialInstance.SetColor(OutlineColorId, outlineColor);
+    }
+
+    // ── outline smoother lifecycle ──
+
+    private void EnsureOutlineSmoother()
+    {
+        PaletteToonOutlineSmoother smoother = GetComponent<PaletteToonOutlineSmoother>();
+
+        if (enableOutline)
+        {
+            if (smoother == null)
+                smoother = gameObject.AddComponent<PaletteToonOutlineSmoother>();
+            else
+                smoother.Bake();
+        }
     }
 
     // ── material instance lifecycle ──
