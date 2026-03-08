@@ -69,14 +69,21 @@ public class PaletteToonOutlineSmoother : MonoBehaviour
         _originalSharedMesh = null;
     }
 
-    // snap position to a grid so float-precision differences don't prevent grouping
-    private static long HashPosition(Vector3 v)
+    // quantized position key — uses actual coordinates for equality,
+    // hash only for bucket placement (no false merges from collisions)
+    private struct QuantizedPos : System.IEquatable<QuantizedPos>
     {
-        // 0.0001 unit grid — well below visual threshold
-        long x = Mathf.RoundToInt(v.x * 10000f);
-        long y = Mathf.RoundToInt(v.y * 10000f);
-        long z = Mathf.RoundToInt(v.z * 10000f);
-        return x * 73856093L ^ y * 19349669L ^ z * 83492791L;
+        public int x, y, z;
+        public QuantizedPos(Vector3 v)
+        {
+            // 0.0001 unit grid — well below visual threshold
+            x = Mathf.RoundToInt(v.x * 10000f);
+            y = Mathf.RoundToInt(v.y * 10000f);
+            z = Mathf.RoundToInt(v.z * 10000f);
+        }
+        public bool Equals(QuantizedPos other) => x == other.x && y == other.y && z == other.z;
+        public override bool Equals(object obj) => obj is QuantizedPos other && Equals(other);
+        public override int GetHashCode() => x * 73856093 ^ y * 19349669 ^ z * 83492791;
     }
 
     private static void BakeSmoothNormals(Mesh mesh)
@@ -89,12 +96,12 @@ public class PaletteToonOutlineSmoother : MonoBehaviour
             return;
 
         // group normals by quantized vertex position and average them
-        Dictionary<long, Vector3> positionToNormal = new Dictionary<long, Vector3>(count);
-        long[] keys = new long[count];
+        Dictionary<QuantizedPos, Vector3> positionToNormal = new Dictionary<QuantizedPos, Vector3>(count);
+        QuantizedPos[] keys = new QuantizedPos[count];
 
         for (int i = 0; i < count; i++)
         {
-            long key = HashPosition(vertices[i]);
+            QuantizedPos key = new QuantizedPos(vertices[i]);
             keys[i] = key;
             if (positionToNormal.TryGetValue(key, out Vector3 accumulated))
                 positionToNormal[key] = accumulated + normals[i];
