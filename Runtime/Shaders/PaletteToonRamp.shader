@@ -269,8 +269,14 @@ Shader "Custom/PaletteToonRamp"
             OutlineVaryings OutlineVert(OutlineAttributes input)
             {
                 OutlineVaryings o;
-                float3 pos = input.positionOS.xyz + normalize(input.normalOS) * _OutlineWidth * _OutlineEnabled;
-                o.positionHCS = TransformObjectToHClip(pos);
+                o.positionHCS = TransformObjectToHClip(input.positionOS.xyz);
+
+                // expand in clip-space along the screen-projected normal
+                float3 normalCS = TransformWorldToHClipDir(TransformObjectToWorldNormal(input.normalOS));
+                float2 offset = normalize(normalCS.xy) * _OutlineWidth * _OutlineEnabled;
+                // scale by w so the width is consistent regardless of depth
+                o.positionHCS.xy += offset * o.positionHCS.w;
+
                 return o;
             }
 
