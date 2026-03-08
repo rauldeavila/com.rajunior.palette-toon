@@ -26,9 +26,6 @@ public class PaletteToonControllerEditor : Editor
     private SerializedProperty _baseTint;
     private SerializedProperty _convertPaletteToProjectColorSpace;
     private SerializedProperty _intensityAffectsBands;
-    private SerializedProperty _enableOutline;
-    private SerializedProperty _outlineWidth;
-    private SerializedProperty _outlineColor;
     private SerializedProperty _bandAccumulation;
     private SerializedProperty _applyFog;
 
@@ -60,9 +57,6 @@ public class PaletteToonControllerEditor : Editor
         _baseTint = serializedObject.FindProperty("baseTint");
         _convertPaletteToProjectColorSpace = serializedObject.FindProperty("convertPaletteToProjectColorSpace");
         _intensityAffectsBands = serializedObject.FindProperty("intensityAffectsBands");
-        _enableOutline = serializedObject.FindProperty("enableOutline");
-        _outlineWidth = serializedObject.FindProperty("outlineWidth");
-        _outlineColor = serializedObject.FindProperty("outlineColor");
         _bandAccumulation = serializedObject.FindProperty("bandAccumulation");
         _applyFog = serializedObject.FindProperty("applyFog");
 
@@ -145,19 +139,7 @@ public class PaletteToonControllerEditor : Editor
         EditorGUILayout.PropertyField(_highlightBandPercentage, new GUIContent("Highlight Width"));
         ClampBandPercentages();
 
-        // ── Section E: Outline ──
-        EditorGUILayout.Space(6f);
-        EditorGUILayout.LabelField("Outline", EditorStyles.boldLabel);
-        EditorGUILayout.PropertyField(_enableOutline, new GUIContent("Enable Outline"));
-        if (_enableOutline.boolValue)
-        {
-            EditorGUI.indentLevel++;
-            EditorGUILayout.PropertyField(_outlineWidth, new GUIContent("Width"));
-            EditorGUILayout.PropertyField(_outlineColor, new GUIContent("Color"));
-            EditorGUI.indentLevel--;
-        }
-
-        // ── Section F: Advanced Settings (collapsed by default) ──
+        // ── Section E: Advanced Settings (collapsed by default) ──
         EditorGUILayout.Space(6f);
         bool newAdvanced = EditorGUILayout.Foldout(_showAdvanced, "Advanced Settings", true);
         if (newAdvanced != _showAdvanced)
