@@ -4,6 +4,7 @@ using UnityEngine;
 public class PaletteToonAutoSetupSettings : ScriptableObject
 {
     private const string DefaultAssetPath = "Assets/Settings/PaletteToonAutoSetupSettings.asset";
+    private const string PackagePalette3xNPath = "Packages/com.rajunior.palette-toon/Runtime/Palettes/ENDESGA-64-3xN.png";
 
     [Tooltip("Palette texture (must be 3 columns wide: shadow, base, highlight per row).")]
     public Texture2D paletteTexture;
@@ -12,7 +13,7 @@ public class PaletteToonAutoSetupSettings : ScriptableObject
     [Min(3)] public int paletteColumns = 3;
 
     [Tooltip("Automatically configure PaletteToonControllers when .fbx models are imported.")]
-    public bool autoMatchOnImport;
+    public bool autoMatchOnImport = true;
 
     [Tooltip("Maximum perceptual color distance (CIELAB Delta-E, 0-100) to accept a match. " +
              "Typical noticeable difference is around 2-5. Set higher for lenient matching.")]
@@ -36,6 +37,7 @@ public class PaletteToonAutoSetupSettings : ScriptableObject
         }
 
         _instance = CreateInstance<PaletteToonAutoSetupSettings>();
+        _instance.paletteTexture = AssetDatabase.LoadAssetAtPath<Texture2D>(PackagePalette3xNPath);
         EnsureFolder("Assets/Settings");
         AssetDatabase.CreateAsset(_instance, DefaultAssetPath);
         AssetDatabase.SaveAssets();

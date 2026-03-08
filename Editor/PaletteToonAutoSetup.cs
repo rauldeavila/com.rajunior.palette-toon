@@ -147,6 +147,10 @@ public static class PaletteToonAutoSetup
             controller.baseColorIndex      = row * cols + 1;
             controller.highlightColorIndex = row * cols + 2;
 
+            controller.darkBandPercentage      = 0.3f;
+            controller.baseBandPercentage      = 0.75f;
+            controller.highlightBandPercentage = 1f;
+
             if (useUndo) controller.Apply();
             EditorUtility.SetDirty(controller);
             result.configured++;

@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.9.1
+
+- **Editor**: Auto-match on FBX import now enabled by default — new settings assets ship with `autoMatchOnImport = true` and the bundled ENDESGA-64 3xN palette pre-assigned.
+- **Editor**: Auto setup now applies band percentages (shadow 0.3 / base 0.75 / highlight 1.0) to configured controllers.
+- **Runtime**: Changed default band balance to shadow 0.3 / base 0.75 / highlight 1.0 (was 0.35 / 0.40 / 0.25).
+
 ## 1.9.0
 
 - **Editor**: Added `Tools > Palette Toon > Auto Setup From Material Colors` — automatically reads FBX material colors, matches them to a 3-column palette (shadow/base/highlight per row), and configures `PaletteToonController` indices per material slot.

@@ -34,9 +34,9 @@ public class PaletteToonController : MonoBehaviour
     [Min(0)] public int highlightColorIndex = 2;
 
     [Header("Band Balance")]
-    [Range(0f, 1f)] public float darkBandPercentage = 0.35f;
-    [Range(0f, 1f)] public float baseBandPercentage = 0.40f;
-    [Range(0f, 1f)] public float highlightBandPercentage = 0.25f;
+    [Range(0f, 1f)] public float darkBandPercentage = 0.3f;
+    [Range(0f, 1f)] public float baseBandPercentage = 0.75f;
+    [Range(0f, 1f)] public float highlightBandPercentage = 1f;
 
     [HideInInspector]
     [Range(0f, 1f)] public float shadowThreshold    = 0.35f;
@@ -305,9 +305,9 @@ public class PaletteToonController : MonoBehaviour
         float total = darkBandPercentage + baseBandPercentage + highlightBandPercentage;
         if (total <= 0.0001f)
         {
-            darkBandPercentage = 0.35f;
-            baseBandPercentage = 0.40f;
-            highlightBandPercentage = 0.25f;
+            darkBandPercentage = 0.3f;
+            baseBandPercentage = 0.75f;
+            highlightBandPercentage = 1f;
             total = 1f;
         }
 
