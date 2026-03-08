@@ -270,20 +270,15 @@ Shader "Custom/PaletteToonRamp"
             OutlineVaryings OutlineVert(OutlineAttributes input)
             {
                 OutlineVaryings o;
-                o.positionHCS = TransformObjectToHClip(input.positionOS.xyz);
 
-                // use smoothed normals from tangent channel when available,
-                // fall back to regular normals otherwise
-                float3 outlineNormalOS = (dot(input.tangentOS.xyz, input.tangentOS.xyz) > 0.001)
-                    ? input.tangentOS.xyz
-                    : input.normalOS;
+                // smoothed normals baked by PaletteToonOutlineSmoother use w=0;
+                // imported tangents from DCC tools use w=±1 (bitangent sign).
+                float3 expandDir = (abs(input.tangentOS.w) < 0.5)
+                    ? normalize(input.tangentOS.xyz)
+                    : normalize(input.normalOS);
 
-                // expand in clip-space along the screen-projected normal
-                float3 normalCS = TransformWorldToHClipDir(TransformObjectToWorldNormal(outlineNormalOS));
-                float2 offset = normalize(normalCS.xy) * _OutlineWidth * _OutlineEnabled;
-                // scale by w so the width is consistent regardless of depth
-                o.positionHCS.xy += offset * o.positionHCS.w;
-
+                float3 pos = input.positionOS.xyz + expandDir * _OutlineWidth * _OutlineEnabled;
+                o.positionHCS = TransformObjectToHClip(pos);
                 return o;
             }
 

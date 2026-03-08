@@ -36,8 +36,8 @@ public class PaletteToonOutlineSmoother : MonoBehaviour
         Mesh shared = _meshFilter.sharedMesh;
         if (shared == null) return;
 
-        // already instanced for this mesh
-        if (_meshInstance != null && _originalSharedMesh == shared) return;
+        // already instanced and active on the filter
+        if (_meshInstance != null && _meshFilter.sharedMesh == _meshInstance) return;
 
         Release();
 
