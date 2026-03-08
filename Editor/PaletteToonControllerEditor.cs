@@ -13,6 +13,7 @@ public class PaletteToonControllerEditor : Editor
     }
 
     private SerializedProperty _targetRenderer;
+    private SerializedProperty _materialIndex;
     private SerializedProperty _paletteTexture;
     private SerializedProperty _shadowColorIndex;
     private SerializedProperty _baseColorIndex;
@@ -43,6 +44,7 @@ public class PaletteToonControllerEditor : Editor
     private void OnEnable()
     {
         _targetRenderer = serializedObject.FindProperty("targetRenderer");
+        _materialIndex = serializedObject.FindProperty("materialIndex");
         _paletteTexture = serializedObject.FindProperty("paletteTexture");
         _shadowColorIndex = serializedObject.FindProperty("shadowColorIndex");
         _baseColorIndex = serializedObject.FindProperty("baseColorIndex");
@@ -67,6 +69,52 @@ public class PaletteToonControllerEditor : Editor
 
         // ── Section A: Setup ──
         EditorGUILayout.PropertyField(_targetRenderer);
+
+        PaletteToonController ctrl = (PaletteToonController)target;
+
+        // Material Slot with name hint
+        EditorGUILayout.BeginHorizontal();
+        EditorGUILayout.PropertyField(_materialIndex, new GUIContent("Material Slot"));
+        if (ctrl.targetRenderer != null)
+        {
+            Material[] mats = ctrl.targetRenderer.sharedMaterials;
+            int idx = _materialIndex.intValue;
+            if (idx >= 0 && idx < mats.Length && mats[idx] != null)
+            {
+                GUIStyle hintStyle = new GUIStyle(EditorStyles.miniLabel)
+                {
+                    fontStyle = FontStyle.Italic
+                };
+                EditorGUILayout.LabelField(mats[idx].name, hintStyle, GUILayout.Width(120f));
+            }
+            else if (idx >= mats.Length)
+            {
+                EditorGUILayout.LabelField("(out of range)", EditorStyles.miniLabel, GUILayout.Width(120f));
+            }
+
+            // Clamp to valid range
+            _materialIndex.intValue = Mathf.Clamp(_materialIndex.intValue, 0, Mathf.Max(0, mats.Length - 1));
+        }
+        EditorGUILayout.EndHorizontal();
+
+        // Warn if another controller targets the same slot
+        if (ctrl.targetRenderer != null)
+        {
+            PaletteToonController[] siblings = ctrl.GetComponents<PaletteToonController>();
+            foreach (PaletteToonController sibling in siblings)
+            {
+                if (sibling != ctrl &&
+                    sibling.targetRenderer == ctrl.targetRenderer &&
+                    sibling.materialIndex == _materialIndex.intValue)
+                {
+                    EditorGUILayout.HelpBox(
+                        $"Another PaletteToonController is also targeting material slot {_materialIndex.intValue}.",
+                        MessageType.Warning);
+                    break;
+                }
+            }
+        }
+
         EditorGUILayout.PropertyField(_paletteTexture);
 
         // ── Section B: Palette Grid (primary interaction) ──
@@ -119,8 +167,7 @@ public class PaletteToonControllerEditor : Editor
 
         serializedObject.ApplyModifiedProperties();
 
-        PaletteToonController controller = (PaletteToonController)target;
-        controller.Apply();
+        ctrl.Apply();
     }
 
     private void DrawPickingStateLabel()

@@ -4,7 +4,6 @@ using UnityEditor;
 #endif
 
 [ExecuteAlways]
-[DisallowMultipleComponent]
 public class PaletteToonController : MonoBehaviour
 {
     private static readonly int BaseColorId      = Shader.PropertyToID("_BaseColor");
@@ -25,6 +24,8 @@ public class PaletteToonController : MonoBehaviour
 
     [Header("Setup")]
     public Renderer targetRenderer;
+    [Tooltip("Which material slot on the renderer to control (0 = first material).")]
+    [Min(0)] public int materialIndex = 0;
     public Texture2D paletteTexture;
 
     [Header("Toon Colors")]
@@ -55,6 +56,7 @@ public class PaletteToonController : MonoBehaviour
     private Material _materialInstance;
     private Material _originalSharedMaterial;
     private Renderer _instancedRenderer;
+    private int _instancedMaterialIndex = -1;
 
     // palette cache (already converted for current project color space)
     private Texture2D _cachedPalette;
@@ -64,6 +66,39 @@ public class PaletteToonController : MonoBehaviour
     private void Reset()
     {
         targetRenderer = GetComponent<Renderer>();
+        AutoAssignMaterialIndex();
+    }
+
+    private void AutoAssignMaterialIndex()
+    {
+        if (targetRenderer == null) return;
+
+        int slotCount = targetRenderer.sharedMaterials.Length;
+        if (slotCount <= 1)
+        {
+            materialIndex = 0;
+            return;
+        }
+
+        PaletteToonController[] siblings = GetComponents<PaletteToonController>();
+        bool[] claimed = new bool[slotCount];
+        foreach (PaletteToonController sibling in siblings)
+        {
+            if (sibling == this) continue;
+            if (sibling.materialIndex >= 0 && sibling.materialIndex < slotCount)
+                claimed[sibling.materialIndex] = true;
+        }
+
+        for (int i = 0; i < slotCount; i++)
+        {
+            if (!claimed[i])
+            {
+                materialIndex = i;
+                return;
+            }
+        }
+
+        materialIndex = 0;
     }
 
     private void OnEnable()
@@ -129,29 +164,51 @@ public class PaletteToonController : MonoBehaviour
 
     private void EnsureMaterialInstance()
     {
-        // If renderer changed, release old instance first
+        // If renderer or material index changed, release old instance first
         if (_instancedRenderer != null && _instancedRenderer != targetRenderer)
-        {
             ReleaseMaterialInstance();
-        }
+
+        if (_materialInstance != null && _instancedMaterialIndex != materialIndex)
+            ReleaseMaterialInstance();
 
         if (_materialInstance != null) return;
 
-        Material shared = targetRenderer.sharedMaterial;
+        Material[] sharedMats = targetRenderer.sharedMaterials;
+        if (sharedMats == null || sharedMats.Length == 0) return;
+
+        if (materialIndex >= sharedMats.Length)
+        {
+            Debug.LogWarning(
+                $"PaletteToonController: materialIndex {materialIndex} is out of range " +
+                $"(renderer has {sharedMats.Length} material(s)). Clamping to last slot.",
+                this);
+            materialIndex = sharedMats.Length - 1;
+        }
+
+        Material shared = sharedMats[materialIndex];
         if (shared == null) return;
 
         _originalSharedMaterial = shared;
         _instancedRenderer = targetRenderer;
+        _instancedMaterialIndex = materialIndex;
         _materialInstance = new Material(shared);
         _materialInstance.name = shared.name + " (Instance)";
-        targetRenderer.material = _materialInstance;
+
+        Material[] mats = targetRenderer.sharedMaterials;
+        mats[materialIndex] = _materialInstance;
+        targetRenderer.sharedMaterials = mats;
     }
 
     private void ReleaseMaterialInstance()
     {
         if (_instancedRenderer != null && _originalSharedMaterial != null)
         {
-            _instancedRenderer.sharedMaterial = _originalSharedMaterial;
+            Material[] mats = _instancedRenderer.sharedMaterials;
+            if (_instancedMaterialIndex >= 0 && _instancedMaterialIndex < mats.Length)
+            {
+                mats[_instancedMaterialIndex] = _originalSharedMaterial;
+                _instancedRenderer.sharedMaterials = mats;
+            }
         }
 
         if (_materialInstance != null)
@@ -165,6 +222,7 @@ public class PaletteToonController : MonoBehaviour
         _materialInstance = null;
         _originalSharedMaterial = null;
         _instancedRenderer = null;
+        _instancedMaterialIndex = -1;
     }
 
     // ── palette cache ──

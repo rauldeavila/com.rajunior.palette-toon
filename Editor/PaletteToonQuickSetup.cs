@@ -89,25 +89,49 @@ public static class PaletteToonQuickSetup
             }
 
             Undo.RecordObject(renderer, "Palette Toon Apply Material");
-            renderer.sharedMaterial = material;
+
+            // Assign toon material to every slot
+            Material[] mats = renderer.sharedMaterials;
+            int slotCount = mats.Length;
+            for (int m = 0; m < slotCount; m++)
+                mats[m] = material;
+            renderer.sharedMaterials = mats;
             EditorUtility.SetDirty(renderer);
 
-            PaletteToonController controller = renderer.GetComponent<PaletteToonController>();
-            if (controller == null)
+            // Create one controller per material slot, reusing existing ones
+            PaletteToonController[] existing = renderer.GetComponents<PaletteToonController>();
+
+            for (int slotIdx = 0; slotIdx < slotCount; slotIdx++)
             {
-                controller = Undo.AddComponent<PaletteToonController>(renderer.gameObject);
+                PaletteToonController controller = null;
+
+                foreach (PaletteToonController ex in existing)
+                {
+                    if (ex.targetRenderer == renderer && ex.materialIndex == slotIdx)
+                    {
+                        controller = ex;
+                        break;
+                    }
+                }
+
+                if (controller == null)
+                {
+                    controller = Undo.AddComponent<PaletteToonController>(renderer.gameObject);
+                }
+
+                Undo.RecordObject(controller, "Palette Toon Configure Controller");
+                controller.targetRenderer = renderer;
+                controller.materialIndex = slotIdx;
+                if (controller.paletteTexture == null)
+                {
+                    controller.paletteTexture = palette;
+                }
+
+                controller.Apply();
+                EditorUtility.SetDirty(controller);
             }
 
-            Undo.RecordObject(controller, "Palette Toon Configure Controller");
-            controller.targetRenderer = renderer;
-            if (controller.paletteTexture == null)
-            {
-                controller.paletteTexture = palette;
-            }
-
-            controller.Apply();
-            EditorUtility.SetDirty(controller);
-            configured++;
+            configured += slotCount;
         }
 
         AssetDatabase.SaveAssets();
