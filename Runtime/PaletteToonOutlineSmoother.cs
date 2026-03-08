@@ -69,6 +69,16 @@ public class PaletteToonOutlineSmoother : MonoBehaviour
         _originalSharedMesh = null;
     }
 
+    // snap position to a grid so float-precision differences don't prevent grouping
+    private static long HashPosition(Vector3 v)
+    {
+        // 0.0001 unit grid — well below visual threshold
+        long x = Mathf.RoundToInt(v.x * 10000f);
+        long y = Mathf.RoundToInt(v.y * 10000f);
+        long z = Mathf.RoundToInt(v.z * 10000f);
+        return x * 73856093L ^ y * 19349669L ^ z * 83492791L;
+    }
+
     private static void BakeSmoothNormals(Mesh mesh)
     {
         Vector3[] vertices = mesh.vertices;
@@ -78,12 +88,14 @@ public class PaletteToonOutlineSmoother : MonoBehaviour
         if (count == 0 || normals == null || normals.Length != count)
             return;
 
-        // group normals by vertex position and average them
-        Dictionary<Vector3, Vector3> positionToNormal = new Dictionary<Vector3, Vector3>(count);
+        // group normals by quantized vertex position and average them
+        Dictionary<long, Vector3> positionToNormal = new Dictionary<long, Vector3>(count);
+        long[] keys = new long[count];
 
         for (int i = 0; i < count; i++)
         {
-            Vector3 key = vertices[i];
+            long key = HashPosition(vertices[i]);
+            keys[i] = key;
             if (positionToNormal.TryGetValue(key, out Vector3 accumulated))
                 positionToNormal[key] = accumulated + normals[i];
             else
@@ -94,7 +106,7 @@ public class PaletteToonOutlineSmoother : MonoBehaviour
         Vector4[] tangents = new Vector4[count];
         for (int i = 0; i < count; i++)
         {
-            Vector3 smoothed = positionToNormal[vertices[i]].normalized;
+            Vector3 smoothed = positionToNormal[keys[i]].normalized;
             tangents[i] = new Vector4(smoothed.x, smoothed.y, smoothed.z, 0f);
         }
 
