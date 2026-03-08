@@ -15,6 +15,11 @@ Shader "Custom/PaletteToonRamp"
         _IntensityAffectsBands("Intensity Affects Bands", Range(0, 1)) = 1
         _BandAccumulation("Band Accumulation (0 Add / 1 Max)", Range(0, 1)) = 1
         _ApplyFog("Apply Fog", Range(0, 1)) = 0
+
+        [Header(Outline)]
+        _OutlineEnabled("Enable Outline", Range(0, 1)) = 0
+        _OutlineWidth("Outline Width", Range(0, 0.1)) = 0.02
+        _OutlineColor("Outline Color", Color) = (0, 0, 0, 1)
     }
 
     SubShader
@@ -73,6 +78,9 @@ Shader "Custom/PaletteToonRamp"
                 float  _IntensityAffectsBands;
                 float  _BandAccumulation;
                 float  _ApplyFog;
+                float  _OutlineEnabled;
+                float  _OutlineWidth;
+                float4 _OutlineColor;
             CBUFFER_END
 
             // perceptual luminance — extracts brightness from a light's color
@@ -212,6 +220,63 @@ Shader "Custom/PaletteToonRamp"
                 float3 fogged = MixFog(color, input.fogCoord);
                 color = lerp(color, fogged, _ApplyFog);
                 return float4(color, 1.0);
+            }
+            ENDHLSL
+        }
+
+        // ── OUTLINE — inverted-hull pass ──
+        Pass
+        {
+            Name "Outline"
+            Tags { "LightMode" = "SRPDefaultUnlit" }
+
+            Cull Front
+            ZWrite On
+            ZTest LEqual
+
+            HLSLPROGRAM
+            #pragma vertex OutlineVert
+            #pragma fragment OutlineFrag
+
+            #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
+
+            CBUFFER_START(UnityPerMaterial)
+                float4 _BaseColor;
+                float4 _ColorShadow;
+                float4 _ColorBase;
+                float4 _ColorHighlight;
+                float  _Threshold1;
+                float  _Threshold2;
+                float  _IntensityAffectsBands;
+                float  _BandAccumulation;
+                float  _ApplyFog;
+                float  _OutlineEnabled;
+                float  _OutlineWidth;
+                float4 _OutlineColor;
+            CBUFFER_END
+
+            struct OutlineAttributes
+            {
+                float4 positionOS : POSITION;
+                float3 normalOS   : NORMAL;
+            };
+
+            struct OutlineVaryings
+            {
+                float4 positionHCS : SV_POSITION;
+            };
+
+            OutlineVaryings OutlineVert(OutlineAttributes input)
+            {
+                OutlineVaryings o;
+                float3 pos = input.positionOS.xyz + normalize(input.normalOS) * _OutlineWidth * _OutlineEnabled;
+                o.positionHCS = TransformObjectToHClip(pos);
+                return o;
+            }
+
+            float4 OutlineFrag(OutlineVaryings input) : SV_Target
+            {
+                return _OutlineColor;
             }
             ENDHLSL
         }

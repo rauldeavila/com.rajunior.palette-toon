@@ -15,6 +15,9 @@ public class PaletteToonController : MonoBehaviour
     private static readonly int IntensityAffectsBandsId = Shader.PropertyToID("_IntensityAffectsBands");
     private static readonly int BandAccumulationId      = Shader.PropertyToID("_BandAccumulation");
     private static readonly int ApplyFogId              = Shader.PropertyToID("_ApplyFog");
+    private static readonly int OutlineEnabledId       = Shader.PropertyToID("_OutlineEnabled");
+    private static readonly int OutlineWidthId         = Shader.PropertyToID("_OutlineWidth");
+    private static readonly int OutlineColorId         = Shader.PropertyToID("_OutlineColor");
 
     public enum BandAccumulationMode
     {
@@ -45,6 +48,11 @@ public class PaletteToonController : MonoBehaviour
 
     [Header("Tint")]
     public Color baseTint = Color.white;
+
+    [Header("Outline")]
+    public bool enableOutline = false;
+    [Range(0f, 0.1f)] public float outlineWidth = 0.02f;
+    public Color outlineColor = Color.black;
 
     [Header("Advanced")]
     [Tooltip("Converts palette colors from sRGB to project color space.")]
@@ -158,6 +166,9 @@ public class PaletteToonController : MonoBehaviour
         _materialInstance.SetFloat(IntensityAffectsBandsId, intensityAffectsBands);
         _materialInstance.SetFloat(BandAccumulationId, (float)bandAccumulation);
         _materialInstance.SetFloat(ApplyFogId, applyFog ? 1f : 0f);
+        _materialInstance.SetFloat(OutlineEnabledId, enableOutline ? 1f : 0f);
+        _materialInstance.SetFloat(OutlineWidthId, outlineWidth);
+        _materialInstance.SetColor(OutlineColorId, outlineColor);
     }
 
     // ── material instance lifecycle ──
