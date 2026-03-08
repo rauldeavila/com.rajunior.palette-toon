@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.9.0
+
+- **Editor**: Added `Tools > Palette Toon > Auto Setup From Material Colors` — automatically reads FBX material colors, matches them to a 3-column palette (shadow/base/highlight per row), and configures `PaletteToonController` indices per material slot.
+- **Editor**: Added `PaletteToonAutoSetupSettings` (Project Settings > Palette Toon > Auto Setup) — configure palette texture, match tolerance, fallback row, and optional auto-match on `.fbx` import.
+- **Editor**: Added `PaletteToonModelPostprocessor` — optional `AssetPostprocessor` that automatically configures controllers when `.fbx` models are imported (toggle in settings).
+- **Editor**: Color matching uses perceptual CIELAB Delta-E (CIE76) for accurate palette lookups.
+
 ## 1.5.0
 
 - **Performance**: SRP Batcher compatible — shader properties moved into `CBUFFER_START(UnityPerMaterial)`, per-object colors now use material instances instead of `MaterialPropertyBlock`.

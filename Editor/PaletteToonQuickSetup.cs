@@ -144,7 +144,7 @@ public static class PaletteToonQuickSetup
         return Selection.gameObjects != null && Selection.gameObjects.Length > 0;
     }
 
-    private static Material GetPreferredMaterial()
+    internal static Material GetPreferredMaterial()
     {
         Material local = AssetDatabase.LoadAssetAtPath<Material>(DefaultLocalMaterialPath);
         if (local != null && local.shader != null && local.shader.name == "Custom/PaletteToonRamp")
@@ -155,7 +155,7 @@ public static class PaletteToonQuickSetup
         return AssetDatabase.LoadAssetAtPath<Material>(PackageMaterialPath);
     }
 
-    private static Renderer[] CollectSelectedRenderers()
+    internal static Renderer[] CollectSelectedRenderers()
     {
         List<Renderer> result = new List<Renderer>();
         HashSet<Renderer> dedupe = new HashSet<Renderer>();
@@ -200,7 +200,7 @@ public static class PaletteToonQuickSetup
         }
     }
 
-    private static bool IsUrpActive()
+    internal static bool IsUrpActive()
     {
         RenderPipelineAsset current = GraphicsSettings.currentRenderPipeline;
         if (current == null)
