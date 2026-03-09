@@ -24,6 +24,17 @@ Shader "Custom/PaletteToonRamp_Terrain"
         // Splatmap (assigned automatically by Unity terrain system)
         [HideInInspector] _Control("Splatmap", 2D) = "red" {}
 
+        // Terrain layer textures (assigned automatically by Unity terrain system)
+        [HideInInspector] _Splat0("Layer 0", 2D) = "grey" {}
+        [HideInInspector] _Splat1("Layer 1", 2D) = "grey" {}
+        [HideInInspector] _Splat2("Layer 2", 2D) = "grey" {}
+        [HideInInspector] _Splat3("Layer 3", 2D) = "grey" {}
+
+        // Palette remap (set by controller when usePaletteRemap is enabled)
+        [HideInInspector] _PaletteRamp("Palette Ramp", 2D) = "white" {}
+        [HideInInspector] _PaletteRowLUT("Palette Row LUT", 3D) = "" {}
+        [HideInInspector] _PaletteRows("Palette Rows", Float) = 1
+
         _Threshold1("Shadow Threshold", Range(0, 1)) = 0.35
         _Threshold2("Highlight Threshold", Range(0, 1)) = 0.75
 
@@ -58,6 +69,7 @@ Shader "Custom/PaletteToonRamp_Terrain"
             #pragma multi_compile_fragment _ _ADDITIONAL_LIGHT_SHADOWS
             #pragma multi_compile_fragment _ _SHADOWS_SOFT
             #pragma multi_compile_fog
+            #pragma shader_feature_local _PALETTE_REMAP
 
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
@@ -81,6 +93,14 @@ Shader "Custom/PaletteToonRamp_Terrain"
             TEXTURE2D(_Control);
             SAMPLER(sampler_Control);
 
+            TEXTURE2D(_Splat0);  SAMPLER(sampler_Splat0);
+            TEXTURE2D(_Splat1);  SAMPLER(sampler_Splat1);
+            TEXTURE2D(_Splat2);  SAMPLER(sampler_Splat2);
+            TEXTURE2D(_Splat3);  SAMPLER(sampler_Splat3);
+
+            TEXTURE2D(_PaletteRamp);    SAMPLER(sampler_PaletteRamp);
+            TEXTURE3D(_PaletteRowLUT);  SAMPLER(sampler_PaletteRowLUT);
+
             CBUFFER_START(UnityPerMaterial)
                 float4 _BaseColor;
 
@@ -101,6 +121,12 @@ Shader "Custom/PaletteToonRamp_Terrain"
                 float4 _ColorHighlight_L3;
 
                 float4 _Control_ST;
+                float4 _Splat0_ST;
+                float4 _Splat1_ST;
+                float4 _Splat2_ST;
+                float4 _Splat3_ST;
+                float4 _PaletteRamp_ST;
+                float  _PaletteRows;
                 float  _Threshold1;
                 float  _Threshold2;
                 float  _IntensityAffectsBands;
@@ -234,12 +260,61 @@ Shader "Custom/PaletteToonRamp_Terrain"
                 // ── splatmap blending ──
                 float4 splat = SAMPLE_TEXTURE2D(_Control, sampler_Control, input.controlUV);
 
+            #if defined(_PALETTE_REMAP)
+                // Palette remap mode: sample layer textures, look up palette row
+                // via 3D LUT, then pick shadow/base/highlight from that row.
+                int band = (totalLight < _Threshold1) ? 0
+                         : (totalLight < _Threshold2) ? 1
+                         : 2;
+                float bandU = (band + 0.5) / 3.0;
+
+                float3 color = float3(0, 0, 0);
+
+                if (splat.r > 0.001)
+                {
+                    float2 tiledUV0 = input.controlUV * _Splat0_ST.xy + _Splat0_ST.zw;
+                    float3 texCol0 = SAMPLE_TEXTURE2D(_Splat0, sampler_Splat0, tiledUV0).rgb;
+                    float rowNorm0 = SAMPLE_TEXTURE3D_LOD(_PaletteRowLUT, sampler_PaletteRowLUT, texCol0, 0).r;
+                    float3 ramp0 = SAMPLE_TEXTURE2D_LOD(_PaletteRamp, sampler_PaletteRamp, float2(bandU, rowNorm0), 0).rgb;
+                    color += ramp0 * splat.r;
+                }
+
+                if (splat.g > 0.001)
+                {
+                    float2 tiledUV1 = input.controlUV * _Splat1_ST.xy + _Splat1_ST.zw;
+                    float3 texCol1 = SAMPLE_TEXTURE2D(_Splat1, sampler_Splat1, tiledUV1).rgb;
+                    float rowNorm1 = SAMPLE_TEXTURE3D_LOD(_PaletteRowLUT, sampler_PaletteRowLUT, texCol1, 0).r;
+                    float3 ramp1 = SAMPLE_TEXTURE2D_LOD(_PaletteRamp, sampler_PaletteRamp, float2(bandU, rowNorm1), 0).rgb;
+                    color += ramp1 * splat.g;
+                }
+
+                if (splat.b > 0.001)
+                {
+                    float2 tiledUV2 = input.controlUV * _Splat2_ST.xy + _Splat2_ST.zw;
+                    float3 texCol2 = SAMPLE_TEXTURE2D(_Splat2, sampler_Splat2, tiledUV2).rgb;
+                    float rowNorm2 = SAMPLE_TEXTURE3D_LOD(_PaletteRowLUT, sampler_PaletteRowLUT, texCol2, 0).r;
+                    float3 ramp2 = SAMPLE_TEXTURE2D_LOD(_PaletteRamp, sampler_PaletteRamp, float2(bandU, rowNorm2), 0).rgb;
+                    color += ramp2 * splat.b;
+                }
+
+                if (splat.a > 0.001)
+                {
+                    float2 tiledUV3 = input.controlUV * _Splat3_ST.xy + _Splat3_ST.zw;
+                    float3 texCol3 = SAMPLE_TEXTURE2D(_Splat3, sampler_Splat3, tiledUV3).rgb;
+                    float rowNorm3 = SAMPLE_TEXTURE3D_LOD(_PaletteRowLUT, sampler_PaletteRowLUT, texCol3, 0).r;
+                    float3 ramp3 = SAMPLE_TEXTURE2D_LOD(_PaletteRamp, sampler_PaletteRamp, float2(bandU, rowNorm3), 0).rgb;
+                    color += ramp3 * splat.a;
+                }
+            #else
+                // Flat color mode: per-layer toon ramp from controller palette indices
                 float3 c0 = ToonRamp(totalLight, _ColorShadow_L0.rgb, _ColorBase_L0.rgb, _ColorHighlight_L0.rgb);
                 float3 c1 = ToonRamp(totalLight, _ColorShadow_L1.rgb, _ColorBase_L1.rgb, _ColorHighlight_L1.rgb);
                 float3 c2 = ToonRamp(totalLight, _ColorShadow_L2.rgb, _ColorBase_L2.rgb, _ColorHighlight_L2.rgb);
                 float3 c3 = ToonRamp(totalLight, _ColorShadow_L3.rgb, _ColorBase_L3.rgb, _ColorHighlight_L3.rgb);
 
                 float3 color = c0 * splat.r + c1 * splat.g + c2 * splat.b + c3 * splat.a;
+            #endif
+
                 color *= _BaseColor.rgb;
 
                 float3 fogged = MixFog(color, input.fogCoord);

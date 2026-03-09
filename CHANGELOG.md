@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.12.0
+
+- **Shader**: Added palette remap mode for terrain — terrain layer textures are sampled and each pixel is automatically remapped to its shadow/base/highlight palette equivalent via a 3D color lookup table.
+- **Runtime**: `PaletteToonTerrainController` gains `usePaletteRemap` toggle and `paletteRampTexture` field. When enabled, the controller generates a 32³ 3D LUT mapping any color to its palette row.
+- **Editor**: Terrain inspector shows remap settings when enabled, hides per-layer color pickers (colors are driven automatically by the textures).
+
 ## 1.11.0
 
 - **Runtime**: Added terrain support — new `PaletteToonRamp_Terrain` shader with splatmap blending for up to 4 terrain layers, each with independent shadow/base/highlight palette colors.

@@ -14,6 +14,8 @@ public class PaletteToonTerrainControllerEditor : Editor
 
     private SerializedProperty _targetTerrain;
     private SerializedProperty _paletteTexture;
+    private SerializedProperty _usePaletteRemap;
+    private SerializedProperty _paletteRampTexture;
     private SerializedProperty _layers;
     private SerializedProperty _darkBandPercentage;
     private SerializedProperty _baseBandPercentage;
@@ -45,6 +47,8 @@ public class PaletteToonTerrainControllerEditor : Editor
     {
         _targetTerrain = serializedObject.FindProperty("targetTerrain");
         _paletteTexture = serializedObject.FindProperty("paletteTexture");
+        _usePaletteRemap = serializedObject.FindProperty("usePaletteRemap");
+        _paletteRampTexture = serializedObject.FindProperty("paletteRampTexture");
         _layers = serializedObject.FindProperty("layers");
         _darkBandPercentage = serializedObject.FindProperty("darkBandPercentage");
         _baseBandPercentage = serializedObject.FindProperty("baseBandPercentage");
@@ -85,42 +89,77 @@ public class PaletteToonTerrainControllerEditor : Editor
             }
         }
 
-        // ── Palette Grid ──
-        DrawPickingStateLabel();
-        DrawPaletteGrid();
-
-        // ── Layer Sections ──
+        // ── Palette Remap ──
         EditorGUILayout.Space(6f);
-        EditorGUILayout.LabelField("Layer Colors", EditorStyles.boldLabel);
+        EditorGUILayout.PropertyField(_usePaletteRemap,
+            new GUIContent("Use Palette Remap",
+                "Sample terrain layer textures and automatically remap each pixel to its " +
+                "shadow/base/highlight palette color based on lighting."));
 
-        int layerCount = PaletteToonTerrainController.MaxLayers;
-        for (int i = 0; i < layerCount; i++)
+        bool isRemapMode = _usePaletteRemap.boolValue;
+
+        if (isRemapMode)
         {
-            string layerName = GetTerrainLayerName(ctrl.targetTerrain, i);
-            string label = string.IsNullOrEmpty(layerName)
-                ? $"Layer {i}"
-                : $"Layer {i} ({layerName})";
+            EditorGUI.indentLevel++;
+            EditorGUILayout.PropertyField(_paletteRampTexture,
+                new GUIContent("Palette Ramp (3×N)",
+                    "The 3-column palette (shadow/base/highlight per row). " +
+                    "If empty, uses the main Palette Texture."));
 
-            bool newFoldout = EditorGUILayout.Foldout(_layerFoldouts[i], label, true);
-            if (newFoldout != _layerFoldouts[i])
+            Texture2D ramp = (_paletteRampTexture.objectReferenceValue as Texture2D)
+                          ?? (_paletteTexture.objectReferenceValue as Texture2D);
+            if (ramp != null && ramp.width != 3)
             {
-                _layerFoldouts[i] = newFoldout;
-                SessionState.SetBool(LayerFoldoutKeyPrefix + i, newFoldout);
+                EditorGUILayout.HelpBox(
+                    $"Palette ramp must be 3 columns wide (shadow/base/highlight). " +
+                    $"Current texture is {ramp.width}×{ramp.height}.",
+                    MessageType.Warning);
             }
 
-            if (_layerFoldouts[i])
-            {
-                EditorGUI.indentLevel++;
-                SerializedProperty layer = _layers.GetArrayElementAtIndex(i);
-                DrawSlotRow("Shadow",    layer.FindPropertyRelative("shadowColorIndex"),    i, ActiveBand.Shadow);
-                DrawSlotRow("Base",      layer.FindPropertyRelative("baseColorIndex"),      i, ActiveBand.Base);
-                DrawSlotRow("Highlight", layer.FindPropertyRelative("highlightColorIndex"), i, ActiveBand.Highlight);
-                EditorGUI.indentLevel--;
-            }
+            EditorGUILayout.HelpBox(
+                "Terrain layer textures will be sampled. Each pixel color is matched to the " +
+                "nearest palette color and remapped to shadow/base/highlight automatically.",
+                MessageType.Info);
+            EditorGUI.indentLevel--;
         }
+        else
+        {
+            // ── Flat Color Mode: Palette Grid + Layer Sections ──
+            DrawPickingStateLabel();
+            DrawPaletteGrid();
 
-        // ── Band Preview Bar ──
-        DrawBandPreviewBar();
+            EditorGUILayout.Space(6f);
+            EditorGUILayout.LabelField("Layer Colors", EditorStyles.boldLabel);
+
+            int layerCount = PaletteToonTerrainController.MaxLayers;
+            for (int i = 0; i < layerCount; i++)
+            {
+                string layerName = GetTerrainLayerName(ctrl.targetTerrain, i);
+                string label = string.IsNullOrEmpty(layerName)
+                    ? $"Layer {i}"
+                    : $"Layer {i} ({layerName})";
+
+                bool newFoldout = EditorGUILayout.Foldout(_layerFoldouts[i], label, true);
+                if (newFoldout != _layerFoldouts[i])
+                {
+                    _layerFoldouts[i] = newFoldout;
+                    SessionState.SetBool(LayerFoldoutKeyPrefix + i, newFoldout);
+                }
+
+                if (_layerFoldouts[i])
+                {
+                    EditorGUI.indentLevel++;
+                    SerializedProperty layer = _layers.GetArrayElementAtIndex(i);
+                    DrawSlotRow("Shadow",    layer.FindPropertyRelative("shadowColorIndex"),    i, ActiveBand.Shadow);
+                    DrawSlotRow("Base",      layer.FindPropertyRelative("baseColorIndex"),      i, ActiveBand.Base);
+                    DrawSlotRow("Highlight", layer.FindPropertyRelative("highlightColorIndex"), i, ActiveBand.Highlight);
+                    EditorGUI.indentLevel--;
+                }
+            }
+
+            // Band Preview Bar only in flat color mode
+            DrawBandPreviewBar();
+        }
 
         // ── Band Balance ──
         EditorGUILayout.Space(6f);

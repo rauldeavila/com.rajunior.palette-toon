@@ -13,6 +13,14 @@ public class PaletteToonTerrainController : MonoBehaviour
     private static readonly int BandAccumulationId      = Shader.PropertyToID("_BandAccumulation");
     private static readonly int ApplyFogId              = Shader.PropertyToID("_ApplyFog");
 
+    // Palette remap IDs
+    private static readonly int PaletteRampId    = Shader.PropertyToID("_PaletteRamp");
+    private static readonly int PaletteRowLUTId  = Shader.PropertyToID("_PaletteRowLUT");
+    private static readonly int PaletteRowsId    = Shader.PropertyToID("_PaletteRows");
+
+    private const string PaletteRemapKeyword = "_PALETTE_REMAP";
+    private const int LutResolution = 32;
+
     private static readonly int[] ColorShadowIds =
     {
         Shader.PropertyToID("_ColorShadow_L0"),
@@ -57,6 +65,15 @@ public class PaletteToonTerrainController : MonoBehaviour
     public Terrain targetTerrain;
     public Texture2D paletteTexture;
 
+    [Header("Palette Remap")]
+    [Tooltip("When enabled, terrain layer textures are sampled and each pixel's color " +
+             "is automatically remapped to its shadow/base/highlight equivalent from " +
+             "the palette. The palette must be organized as 3 columns (shadow, base, highlight) × N rows.")]
+    public bool usePaletteRemap = false;
+    [Tooltip("The 3-column palette used for remap (shadow/base/highlight per row). " +
+             "If not set, falls back to the main palette texture.")]
+    public Texture2D paletteRampTexture;
+
     [Header("Layer Colors")]
     public LayerColors[] layers = new LayerColors[MaxLayers]
     {
@@ -94,6 +111,11 @@ public class PaletteToonTerrainController : MonoBehaviour
     private Color[] _cachedColors;
     private bool _cachedConvertToProjectColorSpace;
 
+    // Palette remap LUT cache
+    private Texture3D _paletteRowLUT;
+    private Texture2D _cachedRampSource;
+    private int _cachedRampRows;
+
     private void Reset()
     {
         targetTerrain = GetComponent<Terrain>();
@@ -107,11 +129,13 @@ public class PaletteToonTerrainController : MonoBehaviour
     private void OnDisable()
     {
         ReleaseMaterialInstance();
+        ReleasePaletteRowLUT();
     }
 
     private void OnDestroy()
     {
         ReleaseMaterialInstance();
+        ReleasePaletteRowLUT();
     }
 
     private void OnValidate()
@@ -138,20 +162,40 @@ public class PaletteToonTerrainController : MonoBehaviour
             Debug.LogWarning("PaletteToonTerrainController: failed to read palette — " + e.Message, this);
         }
 
-        int maxIndex = GetMaxPaletteIndex();
-
         NormalizeBandPercentages(out shadowThreshold, out highlightThreshold);
 
-        for (int i = 0; i < MaxLayers; i++)
+        // ── palette remap mode ──
+        if (usePaletteRemap)
         {
-            LayerColors lc = layers[i];
-            lc.shadowColorIndex    = Mathf.Clamp(lc.shadowColorIndex, 0, maxIndex);
-            lc.baseColorIndex      = Mathf.Clamp(lc.baseColorIndex, 0, maxIndex);
-            lc.highlightColorIndex = Mathf.Clamp(lc.highlightColorIndex, 0, maxIndex);
+            _materialInstance.EnableKeyword(PaletteRemapKeyword);
 
-            _materialInstance.SetColor(ColorShadowIds[i],    GetCachedColor(lc.shadowColorIndex));
-            _materialInstance.SetColor(ColorBaseIds[i],       GetCachedColor(lc.baseColorIndex));
-            _materialInstance.SetColor(ColorHighlightIds[i],  GetCachedColor(lc.highlightColorIndex));
+            Texture2D ramp = paletteRampTexture != null ? paletteRampTexture : paletteTexture;
+            if (ramp != null)
+            {
+                EnsurePaletteRowLUT(ramp);
+                _materialInstance.SetTexture(PaletteRampId, ramp);
+                _materialInstance.SetFloat(PaletteRowsId, ramp.height);
+                if (_paletteRowLUT != null)
+                    _materialInstance.SetTexture(PaletteRowLUTId, _paletteRowLUT);
+            }
+        }
+        else
+        {
+            _materialInstance.DisableKeyword(PaletteRemapKeyword);
+
+            // Flat color mode: set per-layer colors from palette
+            int maxIndex = GetMaxPaletteIndex();
+            for (int i = 0; i < MaxLayers; i++)
+            {
+                LayerColors lc = layers[i];
+                lc.shadowColorIndex    = Mathf.Clamp(lc.shadowColorIndex, 0, maxIndex);
+                lc.baseColorIndex      = Mathf.Clamp(lc.baseColorIndex, 0, maxIndex);
+                lc.highlightColorIndex = Mathf.Clamp(lc.highlightColorIndex, 0, maxIndex);
+
+                _materialInstance.SetColor(ColorShadowIds[i],    GetCachedColor(lc.shadowColorIndex));
+                _materialInstance.SetColor(ColorBaseIds[i],       GetCachedColor(lc.baseColorIndex));
+                _materialInstance.SetColor(ColorHighlightIds[i],  GetCachedColor(lc.highlightColorIndex));
+            }
         }
 
         _materialInstance.SetColor(BaseColorId,       baseTint);
@@ -264,6 +308,115 @@ public class PaletteToonTerrainController : MonoBehaviour
         }
 
         return converted;
+    }
+
+    // ── palette remap LUT ──
+
+    private void EnsurePaletteRowLUT(Texture2D ramp)
+    {
+        if (ramp == _cachedRampSource && _paletteRowLUT != null && _cachedRampRows == ramp.height)
+            return;
+
+        ReleasePaletteRowLUT();
+        _cachedRampSource = ramp;
+        _cachedRampRows = ramp.height;
+
+        Color[] rampColors = ReadPaletteColors(ramp);
+        if (rampColors == null || rampColors.Length == 0) return;
+
+        int paletteColumns = ramp.width;
+        int paletteRows = ramp.height;
+
+        // Build 3D LUT: for each (R,G,B) cell, find nearest palette color → encode row
+        int res = LutResolution;
+        Color[] lutPixels = new Color[res * res * res];
+
+        for (int b = 0; b < res; b++)
+        for (int g = 0; g < res; g++)
+        for (int r = 0; r < res; r++)
+        {
+            float rf = r / (float)(res - 1);
+            float gf = g / (float)(res - 1);
+            float bf = b / (float)(res - 1);
+
+            float bestDist = float.MaxValue;
+            int bestRow = 0;
+
+            for (int row = 0; row < paletteRows; row++)
+            {
+                for (int col = 0; col < paletteColumns; col++)
+                {
+                    int idx = row * paletteColumns + col;
+                    if (idx >= rampColors.Length) continue;
+
+                    Color pc = rampColors[idx];
+                    float dr = rf - pc.r;
+                    float dg = gf - pc.g;
+                    float db = bf - pc.b;
+                    float dist = dr * dr + dg * dg + db * db;
+                    if (dist < bestDist)
+                    {
+                        bestDist = dist;
+                        bestRow = row;
+                    }
+                }
+            }
+
+            // Encode row as normalized value; add 0.5 to center within the texel
+            float rowNorm = (bestRow + 0.5f) / paletteRows;
+            int lutIdx = r + g * res + b * res * res;
+            lutPixels[lutIdx] = new Color(rowNorm, 0f, 0f, 1f);
+        }
+
+        _paletteRowLUT = new Texture3D(res, res, res, TextureFormat.RGBA32, false);
+        _paletteRowLUT.filterMode = FilterMode.Point;
+        _paletteRowLUT.wrapMode = TextureWrapMode.Clamp;
+        _paletteRowLUT.SetPixels(lutPixels);
+        _paletteRowLUT.Apply(false, false);
+    }
+
+    private Color[] ReadPaletteColors(Texture2D tex)
+    {
+        if (tex == null) return null;
+
+#if UNITY_EDITOR
+        string path = AssetDatabase.GetAssetPath(tex);
+        if (!string.IsNullOrEmpty(path) && System.IO.File.Exists(path))
+        {
+            byte[] bytes = System.IO.File.ReadAllBytes(path);
+            Texture2D tmp = new Texture2D(2, 2, TextureFormat.RGBA32, false, true);
+            if (tmp.LoadImage(bytes, false))
+            {
+                Color32[] raw = tmp.GetPixels32();
+                DestroyImmediate(tmp);
+                // Return raw sRGB colors (shader textures are also sRGB → GPU converts both)
+                Color[] result = new Color[raw.Length];
+                for (int i = 0; i < raw.Length; i++)
+                    result[i] = (Color)raw[i];
+                return result;
+            }
+            DestroyImmediate(tmp);
+        }
+#endif
+        Color32[] fallback = tex.GetPixels32();
+        Color[] fallbackColors = new Color[fallback.Length];
+        for (int i = 0; i < fallback.Length; i++)
+            fallbackColors[i] = (Color)fallback[i];
+        return fallbackColors;
+    }
+
+    private void ReleasePaletteRowLUT()
+    {
+        if (_paletteRowLUT != null)
+        {
+            if (Application.isPlaying)
+                Destroy(_paletteRowLUT);
+            else
+                DestroyImmediate(_paletteRowLUT);
+        }
+        _paletteRowLUT = null;
+        _cachedRampSource = null;
+        _cachedRampRows = 0;
     }
 
     private void NormalizeBandPercentages(out float thresholdShadow, out float thresholdHighlight)
