@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.11.0
+
+- **Runtime**: Added terrain support — new `PaletteToonRamp_Terrain` shader with splatmap blending for up to 4 terrain layers, each with independent shadow/base/highlight palette colors.
+- **Runtime**: Added `PaletteToonTerrainController` — manages material instances on `Terrain` components with per-layer palette color configuration.
+- **Editor**: Added `PaletteToonTerrainControllerEditor` — custom inspector with per-layer foldouts, palette grid picker with layer-aware auto-advance, and terrain layer name display.
+- **Editor**: Added `Tools > Palette Toon > Apply To Selected Terrains` for one-click terrain setup.
+- **Editor**: Added `Tools > Palette Toon > Create Local Terrain Material Preset`.
+- **Runtime**: Bundled `PaletteToonRamp_Terrain.mat` terrain material.
+
 ## 1.9.1
 
 - **Editor**: Auto-match on FBX import now enabled by default — new settings assets ship with `autoMatchOnImport = true` and the bundled ENDESGA-64 3xN palette pre-assigned.

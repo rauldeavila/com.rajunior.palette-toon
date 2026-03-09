@@ -6,8 +6,10 @@ using UnityEngine.Rendering;
 public static class PaletteToonQuickSetup
 {
     private const string PackageMaterialPath = "Packages/com.rajunior.palette-toon/Runtime/Materials/PaletteToonRamp.mat";
+    private const string PackageTerrainMaterialPath = "Packages/com.rajunior.palette-toon/Runtime/Materials/PaletteToonRamp_Terrain.mat";
     private const string PackagePalettePath = "Packages/com.rajunior.palette-toon/Runtime/Palettes/ENDESGA-64-1x.png";
     private const string DefaultLocalMaterialPath = "Assets/Materials/PaletteToonRamp.mat";
+    private const string DefaultLocalTerrainMaterialPath = "Assets/Materials/PaletteToonRamp_Terrain.mat";
 
     [MenuItem("Tools/Palette Toon/Create Local Material Preset", priority = 2000)]
     private static void CreateLocalMaterialPreset()
@@ -198,6 +200,146 @@ public static class PaletteToonQuickSetup
 
             current = next;
         }
+    }
+
+    // ── Terrain ──
+
+    [MenuItem("Tools/Palette Toon/Apply To Selected Terrains", priority = 2003)]
+    private static void ApplyToSelectedTerrains()
+    {
+        if (!IsUrpActive())
+        {
+            const string message = "Palette Toon requires URP as the active render pipeline.\n\n" +
+                                   "Fix:\n" +
+                                   "1) Install URP package\n" +
+                                   "2) Create a URP Pipeline Asset\n" +
+                                   "3) Assign it in Project Settings > Graphics and Project Settings > Quality";
+            EditorUtility.DisplayDialog("Palette Toon - URP Required", message, "OK");
+            Debug.LogError("Palette Toon: URP is not active. Assign a Universal Render Pipeline Asset in Graphics/Quality settings.");
+            return;
+        }
+
+        Material terrainMaterial = GetPreferredTerrainMaterial();
+        if (terrainMaterial == null)
+        {
+            Debug.LogError("Palette Toon: no terrain material found. Reimport the package.");
+            return;
+        }
+
+        Texture2D palette = AssetDatabase.LoadAssetAtPath<Texture2D>(PackagePalettePath);
+        if (palette == null)
+        {
+            Debug.LogError("Palette Toon: package palette not found. Reimport the package.");
+            return;
+        }
+
+        Terrain[] terrains = CollectSelectedTerrains();
+        if (terrains.Length == 0)
+        {
+            Debug.LogWarning("Palette Toon: no Terrain found in current selection.");
+            return;
+        }
+
+        int configured = 0;
+        foreach (Terrain terrain in terrains)
+        {
+            if (terrain == null) continue;
+
+            Undo.RecordObject(terrain, "Palette Toon Apply Terrain Material");
+            terrain.materialTemplate = terrainMaterial;
+            EditorUtility.SetDirty(terrain);
+
+            PaletteToonTerrainController controller =
+                terrain.GetComponent<PaletteToonTerrainController>();
+
+            if (controller == null)
+                controller = Undo.AddComponent<PaletteToonTerrainController>(terrain.gameObject);
+
+            Undo.RecordObject(controller, "Palette Toon Configure Terrain Controller");
+            controller.targetTerrain = terrain;
+            if (controller.paletteTexture == null)
+                controller.paletteTexture = palette;
+
+            controller.Apply();
+            EditorUtility.SetDirty(controller);
+            configured++;
+        }
+
+        AssetDatabase.SaveAssets();
+        Debug.Log($"Palette Toon: configured {configured} terrain(s).\nMaterial: {AssetDatabase.GetAssetPath(terrainMaterial)}");
+    }
+
+    [MenuItem("Tools/Palette Toon/Apply To Selected Terrains", true)]
+    private static bool ValidateApplyToSelectedTerrains()
+    {
+        return Selection.gameObjects != null && Selection.gameObjects.Length > 0;
+    }
+
+    [MenuItem("Tools/Palette Toon/Create Local Terrain Material Preset", priority = 2005)]
+    private static void CreateLocalTerrainMaterialPreset()
+    {
+        Material packageMaterial = AssetDatabase.LoadAssetAtPath<Material>(PackageTerrainMaterialPath);
+        if (packageMaterial == null)
+        {
+            Debug.LogError("Palette Toon: package terrain material not found. Reimport the package.");
+            return;
+        }
+
+        EnsureFolder("Assets/Materials");
+
+        Material localMaterial = AssetDatabase.LoadAssetAtPath<Material>(DefaultLocalTerrainMaterialPath);
+        if (localMaterial == null)
+        {
+            localMaterial = new Material(packageMaterial)
+            {
+                name = "PaletteToonRamp_Terrain"
+            };
+            AssetDatabase.CreateAsset(localMaterial, DefaultLocalTerrainMaterialPath);
+        }
+        else
+        {
+            localMaterial.shader = packageMaterial.shader;
+            localMaterial.CopyPropertiesFromMaterial(packageMaterial);
+            EditorUtility.SetDirty(localMaterial);
+        }
+
+        AssetDatabase.SaveAssets();
+
+        Selection.activeObject = localMaterial;
+        EditorGUIUtility.PingObject(localMaterial);
+        Debug.Log("Palette Toon: local terrain material is ready at Assets/Materials/PaletteToonRamp_Terrain.mat");
+    }
+
+    internal static Material GetPreferredTerrainMaterial()
+    {
+        Material local = AssetDatabase.LoadAssetAtPath<Material>(DefaultLocalTerrainMaterialPath);
+        if (local != null && local.shader != null && local.shader.name == "Custom/PaletteToonRamp_Terrain")
+        {
+            return local;
+        }
+
+        return AssetDatabase.LoadAssetAtPath<Material>(PackageTerrainMaterialPath);
+    }
+
+    internal static Terrain[] CollectSelectedTerrains()
+    {
+        List<Terrain> result = new List<Terrain>();
+        HashSet<Terrain> dedupe = new HashSet<Terrain>();
+
+        foreach (GameObject selected in Selection.gameObjects)
+        {
+            if (selected == null) continue;
+
+            Terrain[] terrains = selected.GetComponentsInChildren<Terrain>(true);
+            for (int i = 0; i < terrains.Length; i++)
+            {
+                Terrain t = terrains[i];
+                if (t != null && dedupe.Add(t))
+                    result.Add(t);
+            }
+        }
+
+        return result.ToArray();
     }
 
     internal static bool IsUrpActive()
