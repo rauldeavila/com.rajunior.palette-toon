@@ -6,7 +6,7 @@ public class PaletteToonModelPostprocessor : AssetPostprocessor
     private void OnPostprocessModel(GameObject root)
     {
         string ext = System.IO.Path.GetExtension(assetPath).ToLowerInvariant();
-        if (ext != ".fbx") return;
+        if (ext != ".fbx" && ext != ".blend") return;
 
         // Cannot create assets during import — only look for existing settings
         var settings = PaletteToonAutoSetupSettings.FindExistingSettings();
