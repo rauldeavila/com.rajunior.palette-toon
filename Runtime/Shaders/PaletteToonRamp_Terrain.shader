@@ -98,8 +98,9 @@ Shader "Custom/PaletteToonRamp_Terrain"
             TEXTURE2D(_Splat2);  SAMPLER(sampler_Splat2);
             TEXTURE2D(_Splat3);  SAMPLER(sampler_Splat3);
 
-            TEXTURE2D(_PaletteRamp);    SAMPLER(sampler_PaletteRamp);
-            TEXTURE3D(_PaletteRowLUT);  SAMPLER(sampler_PaletteRowLUT);
+            TEXTURE2D(_PaletteRamp);
+            TEXTURE3D(_PaletteRowLUT);
+            SAMPLER(sampler_point_clamp);
 
             CBUFFER_START(UnityPerMaterial)
                 float4 _BaseColor;
@@ -274,8 +275,8 @@ Shader "Custom/PaletteToonRamp_Terrain"
                 {
                     float2 tiledUV0 = input.controlUV * _Splat0_ST.xy + _Splat0_ST.zw;
                     float3 texCol0 = SAMPLE_TEXTURE2D(_Splat0, sampler_Splat0, tiledUV0).rgb;
-                    float rowNorm0 = SAMPLE_TEXTURE3D_LOD(_PaletteRowLUT, sampler_PaletteRowLUT, texCol0, 0).r;
-                    float3 ramp0 = SAMPLE_TEXTURE2D_LOD(_PaletteRamp, sampler_PaletteRamp, float2(bandU, rowNorm0), 0).rgb;
+                    float rowNorm0 = SAMPLE_TEXTURE3D_LOD(_PaletteRowLUT, sampler_point_clamp, texCol0, 0).r;
+                    float3 ramp0 = SAMPLE_TEXTURE2D_LOD(_PaletteRamp, sampler_point_clamp, float2(bandU, rowNorm0), 0).rgb;
                     color += ramp0 * splat.r;
                 }
 
@@ -283,8 +284,8 @@ Shader "Custom/PaletteToonRamp_Terrain"
                 {
                     float2 tiledUV1 = input.controlUV * _Splat1_ST.xy + _Splat1_ST.zw;
                     float3 texCol1 = SAMPLE_TEXTURE2D(_Splat1, sampler_Splat1, tiledUV1).rgb;
-                    float rowNorm1 = SAMPLE_TEXTURE3D_LOD(_PaletteRowLUT, sampler_PaletteRowLUT, texCol1, 0).r;
-                    float3 ramp1 = SAMPLE_TEXTURE2D_LOD(_PaletteRamp, sampler_PaletteRamp, float2(bandU, rowNorm1), 0).rgb;
+                    float rowNorm1 = SAMPLE_TEXTURE3D_LOD(_PaletteRowLUT, sampler_point_clamp, texCol1, 0).r;
+                    float3 ramp1 = SAMPLE_TEXTURE2D_LOD(_PaletteRamp, sampler_point_clamp, float2(bandU, rowNorm1), 0).rgb;
                     color += ramp1 * splat.g;
                 }
 
@@ -292,8 +293,8 @@ Shader "Custom/PaletteToonRamp_Terrain"
                 {
                     float2 tiledUV2 = input.controlUV * _Splat2_ST.xy + _Splat2_ST.zw;
                     float3 texCol2 = SAMPLE_TEXTURE2D(_Splat2, sampler_Splat2, tiledUV2).rgb;
-                    float rowNorm2 = SAMPLE_TEXTURE3D_LOD(_PaletteRowLUT, sampler_PaletteRowLUT, texCol2, 0).r;
-                    float3 ramp2 = SAMPLE_TEXTURE2D_LOD(_PaletteRamp, sampler_PaletteRamp, float2(bandU, rowNorm2), 0).rgb;
+                    float rowNorm2 = SAMPLE_TEXTURE3D_LOD(_PaletteRowLUT, sampler_point_clamp, texCol2, 0).r;
+                    float3 ramp2 = SAMPLE_TEXTURE2D_LOD(_PaletteRamp, sampler_point_clamp, float2(bandU, rowNorm2), 0).rgb;
                     color += ramp2 * splat.b;
                 }
 
@@ -301,8 +302,8 @@ Shader "Custom/PaletteToonRamp_Terrain"
                 {
                     float2 tiledUV3 = input.controlUV * _Splat3_ST.xy + _Splat3_ST.zw;
                     float3 texCol3 = SAMPLE_TEXTURE2D(_Splat3, sampler_Splat3, tiledUV3).rgb;
-                    float rowNorm3 = SAMPLE_TEXTURE3D_LOD(_PaletteRowLUT, sampler_PaletteRowLUT, texCol3, 0).r;
-                    float3 ramp3 = SAMPLE_TEXTURE2D_LOD(_PaletteRamp, sampler_PaletteRamp, float2(bandU, rowNorm3), 0).rgb;
+                    float rowNorm3 = SAMPLE_TEXTURE3D_LOD(_PaletteRowLUT, sampler_point_clamp, texCol3, 0).r;
+                    float3 ramp3 = SAMPLE_TEXTURE2D_LOD(_PaletteRamp, sampler_point_clamp, float2(bandU, rowNorm3), 0).rgb;
                     color += ramp3 * splat.a;
                 }
             #else

@@ -327,6 +327,28 @@ public class PaletteToonTerrainController : MonoBehaviour
         int paletteColumns = ramp.width;
         int paletteRows = ramp.height;
 
+        // Terrain layer textures are imported as sRGB. In a Linear project the
+        // GPU auto-converts sampled values to linear, so the LUT is indexed by
+        // linear colors. Convert palette colors to linear to match.
+        // In a Gamma project no conversion happens — use sRGB values as-is.
+        bool isLinear = QualitySettings.activeColorSpace == ColorSpace.Linear;
+        Color[] matchColors = new Color[rampColors.Length];
+        for (int i = 0; i < rampColors.Length; i++)
+        {
+            if (isLinear)
+            {
+                matchColors[i] = new Color(
+                    Mathf.GammaToLinearSpace(rampColors[i].r),
+                    Mathf.GammaToLinearSpace(rampColors[i].g),
+                    Mathf.GammaToLinearSpace(rampColors[i].b),
+                    rampColors[i].a);
+            }
+            else
+            {
+                matchColors[i] = rampColors[i];
+            }
+        }
+
         // Build 3D LUT: for each (R,G,B) cell, find nearest palette color → encode row
         int res = LutResolution;
         Color[] lutPixels = new Color[res * res * res];
@@ -347,9 +369,9 @@ public class PaletteToonTerrainController : MonoBehaviour
                 for (int col = 0; col < paletteColumns; col++)
                 {
                     int idx = row * paletteColumns + col;
-                    if (idx >= rampColors.Length) continue;
+                    if (idx >= matchColors.Length) continue;
 
-                    Color pc = rampColors[idx];
+                    Color pc = matchColors[idx];
                     float dr = rf - pc.r;
                     float dg = gf - pc.g;
                     float db = bf - pc.b;
@@ -368,7 +390,9 @@ public class PaletteToonTerrainController : MonoBehaviour
             lutPixels[lutIdx] = new Color(rowNorm, 0f, 0f, 1f);
         }
 
-        _paletteRowLUT = new Texture3D(res, res, res, TextureFormat.RGBA32, false);
+        // RFloat is a data format — never treated as sRGB, so stored row
+        // indices are read back without any gamma conversion.
+        _paletteRowLUT = new Texture3D(res, res, res, TextureFormat.RFloat, false);
         _paletteRowLUT.filterMode = FilterMode.Point;
         _paletteRowLUT.wrapMode = TextureWrapMode.Clamp;
         _paletteRowLUT.SetPixels(lutPixels);

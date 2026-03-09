@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.12.1
+
+- **Shader**: Fixed palette remap inconsistency — LUT is now built in the correct color space (linear for Linear projects, sRGB for Gamma) so terrain texture lookups match palette colors reliably.
+- **Shader**: Changed `_PaletteRowLUT` 3D texture from `RGBA32` to `RFloat` — stored row indices are no longer corrupted by implicit sRGB gamma conversion on read.
+- **Shader**: Palette ramp and row LUT now use explicit `sampler_point_clamp` — eliminates color bleeding from bilinear interpolation between palette cells.
+- **Editor**: Added import-settings validation for palette ramp texture (sRGB, Point filter, no compression) with actionable warnings.
+
 ## 1.12.0
 
 - **Shader**: Added palette remap mode for terrain — terrain layer textures are sampled and each pixel is automatically remapped to its shadow/base/highlight palette equivalent via a 3D color lookup table.

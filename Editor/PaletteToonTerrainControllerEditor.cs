@@ -116,6 +116,32 @@ public class PaletteToonTerrainControllerEditor : Editor
                     MessageType.Warning);
             }
 
+            // Validate palette ramp import settings
+            if (ramp != null)
+            {
+                string rampPath = AssetDatabase.GetAssetPath(ramp);
+                if (!string.IsNullOrEmpty(rampPath))
+                {
+                    TextureImporter importer = AssetImporter.GetAtPath(rampPath) as TextureImporter;
+                    if (importer != null)
+                    {
+                        System.Collections.Generic.List<string> issues = new();
+                        if (!importer.sRGBTexture)
+                            issues.Add("sRGB must be ON (palette colors are sRGB)");
+                        if (importer.filterMode != FilterMode.Point)
+                            issues.Add("Filter Mode should be Point (no blending between palette cells)");
+                        if (importer.textureCompression != TextureImporterCompression.Uncompressed)
+                            issues.Add("Compression should be None (avoid color shifting)");
+                        if (issues.Count > 0)
+                        {
+                            EditorGUILayout.HelpBox(
+                                "Palette ramp import settings:\n• " + string.Join("\n• ", issues),
+                                MessageType.Warning);
+                        }
+                    }
+                }
+            }
+
             EditorGUILayout.HelpBox(
                 "Terrain layer textures will be sampled. Each pixel color is matched to the " +
                 "nearest palette color and remapped to shadow/base/highlight automatically.",
