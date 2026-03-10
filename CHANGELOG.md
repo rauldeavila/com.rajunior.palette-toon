@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.14.0
+
+- **Shader**: Added `PaletteToonGrass` shader for terrain detail grass meshes — 3-band toon ramp lighting with alpha cutout, double-sided rendering, backface normal flip, and wind/wave vertex animation using Unity terrain globals.
+- **Runtime**: Added `PaletteToonGrassController` — configures grass material palette colors directly (no material instancing, shared across all detail instances).
+- **Editor**: Added `PaletteToonGrassControllerEditor` — custom inspector with palette grid picker, auto-advance color picking, band preview bar, and advanced settings.
+- **Editor**: Added `Tools > Palette Toon > Apply Grass To Selected Terrains` for one-click grass controller setup.
+- **Editor**: Added `Tools > Palette Toon > Create Local Grass Material Preset`.
+- **Runtime**: Bundled `PaletteToonGrass.mat` grass material.
+
 ## 1.13.1
 
 - **Editor**: Fixed auto-setup color matching selecting wrong palette rows in Linear projects — `GetMaterialBaseColor` now uses `GetVector` instead of `GetColor` to read raw sRGB values, preventing double gamma-to-linear conversion during Delta-E comparison.
