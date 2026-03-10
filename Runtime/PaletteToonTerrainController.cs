@@ -19,7 +19,25 @@ public class PaletteToonTerrainController : MonoBehaviour
     private static readonly int PaletteRowsId    = Shader.PropertyToID("_PaletteRows");
 
     private const string PaletteRemapKeyword = "_PALETTE_REMAP";
+    private const string TextureVariationKeyword = "_TEXTURE_VARIATION";
     private const int LutResolution = 32;
+
+    // Texture variation IDs
+    private static readonly int[] ShadowTexIds =
+    {
+        Shader.PropertyToID("_ShadowTex_L0"),
+        Shader.PropertyToID("_ShadowTex_L1"),
+        Shader.PropertyToID("_ShadowTex_L2"),
+        Shader.PropertyToID("_ShadowTex_L3"),
+    };
+
+    private static readonly int[] HighlightTexIds =
+    {
+        Shader.PropertyToID("_HighlightTex_L0"),
+        Shader.PropertyToID("_HighlightTex_L1"),
+        Shader.PropertyToID("_HighlightTex_L2"),
+        Shader.PropertyToID("_HighlightTex_L3"),
+    };
 
     private static readonly int[] ColorShadowIds =
     {
@@ -53,6 +71,17 @@ public class PaletteToonTerrainController : MonoBehaviour
         [Min(0)] public int shadowColorIndex    = 0;
         [Min(0)] public int baseColorIndex      = 1;
         [Min(0)] public int highlightColorIndex = 2;
+
+        // Texture variation mode
+        public Texture2D shadowTexture;
+        public Texture2D highlightTexture;
+    }
+
+    public enum TerrainToonMode
+    {
+        FlatColor = 0,
+        PaletteRemap = 1,
+        TextureVariation = 2
     }
 
     public enum BandAccumulationMode
@@ -65,14 +94,17 @@ public class PaletteToonTerrainController : MonoBehaviour
     public Terrain targetTerrain;
     public Texture2D paletteTexture;
 
-    [Header("Palette Remap")]
-    [Tooltip("When enabled, terrain layer textures are sampled and each pixel's color " +
-             "is automatically remapped to its shadow/base/highlight equivalent from " +
-             "the palette. The palette must be organized as 3 columns (shadow, base, highlight) × N rows.")]
-    public bool usePaletteRemap = false;
+    [Header("Toon Mode")]
+    [Tooltip("FlatColor: per-layer colors from palette.\n" +
+             "PaletteRemap: auto-remap texture colors via 3D LUT.\n" +
+             "TextureVariation: assign shadow/highlight texture variants per layer.")]
+    public TerrainToonMode toonMode = TerrainToonMode.FlatColor;
     [Tooltip("The 3-column palette used for remap (shadow/base/highlight per row). " +
              "If not set, falls back to the main palette texture.")]
     public Texture2D paletteRampTexture;
+
+    // Legacy field — migrated to toonMode in OnValidate
+    [HideInInspector, SerializeField] private bool usePaletteRemap = false;
 
     [Header("Layer Colors")]
     public LayerColors[] layers = new LayerColors[MaxLayers]
@@ -140,6 +172,13 @@ public class PaletteToonTerrainController : MonoBehaviour
 
     private void OnValidate()
     {
+        // Migrate legacy bool → enum
+        if (usePaletteRemap)
+        {
+            toonMode = TerrainToonMode.PaletteRemap;
+            usePaletteRemap = false;
+        }
+
         NormalizeBandPercentages(out shadowThreshold, out highlightThreshold);
         intensityAffectsBands = Mathf.Clamp01(intensityAffectsBands);
         Apply();
@@ -164,37 +203,58 @@ public class PaletteToonTerrainController : MonoBehaviour
 
         NormalizeBandPercentages(out shadowThreshold, out highlightThreshold);
 
-        // ── palette remap mode ──
-        if (usePaletteRemap)
-        {
-            _materialInstance.EnableKeyword(PaletteRemapKeyword);
+        // ── mode selection ──
+        _materialInstance.DisableKeyword(PaletteRemapKeyword);
+        _materialInstance.DisableKeyword(TextureVariationKeyword);
 
-            Texture2D ramp = paletteRampTexture != null ? paletteRampTexture : paletteTexture;
-            if (ramp != null)
+        switch (toonMode)
+        {
+            case TerrainToonMode.PaletteRemap:
             {
-                EnsurePaletteRowLUT(ramp);
-                _materialInstance.SetTexture(PaletteRampId, ramp);
-                _materialInstance.SetFloat(PaletteRowsId, ramp.height);
-                if (_paletteRowLUT != null)
-                    _materialInstance.SetTexture(PaletteRowLUTId, _paletteRowLUT);
+                _materialInstance.EnableKeyword(PaletteRemapKeyword);
+
+                Texture2D ramp = paletteRampTexture != null ? paletteRampTexture : paletteTexture;
+                if (ramp != null)
+                {
+                    EnsurePaletteRowLUT(ramp);
+                    _materialInstance.SetTexture(PaletteRampId, ramp);
+                    _materialInstance.SetFloat(PaletteRowsId, ramp.height);
+                    if (_paletteRowLUT != null)
+                        _materialInstance.SetTexture(PaletteRowLUTId, _paletteRowLUT);
+                }
+                break;
             }
-        }
-        else
-        {
-            _materialInstance.DisableKeyword(PaletteRemapKeyword);
 
-            // Flat color mode: set per-layer colors from palette
-            int maxIndex = GetMaxPaletteIndex();
-            for (int i = 0; i < MaxLayers; i++)
+            case TerrainToonMode.TextureVariation:
             {
-                LayerColors lc = layers[i];
-                lc.shadowColorIndex    = Mathf.Clamp(lc.shadowColorIndex, 0, maxIndex);
-                lc.baseColorIndex      = Mathf.Clamp(lc.baseColorIndex, 0, maxIndex);
-                lc.highlightColorIndex = Mathf.Clamp(lc.highlightColorIndex, 0, maxIndex);
+                _materialInstance.EnableKeyword(TextureVariationKeyword);
 
-                _materialInstance.SetColor(ColorShadowIds[i],    GetCachedColor(lc.shadowColorIndex));
-                _materialInstance.SetColor(ColorBaseIds[i],       GetCachedColor(lc.baseColorIndex));
-                _materialInstance.SetColor(ColorHighlightIds[i],  GetCachedColor(lc.highlightColorIndex));
+                for (int i = 0; i < MaxLayers; i++)
+                {
+                    LayerColors lc = layers[i];
+                    if (lc.shadowTexture != null)
+                        _materialInstance.SetTexture(ShadowTexIds[i], lc.shadowTexture);
+                    if (lc.highlightTexture != null)
+                        _materialInstance.SetTexture(HighlightTexIds[i], lc.highlightTexture);
+                }
+                break;
+            }
+
+            default: // FlatColor
+            {
+                int maxIndex = GetMaxPaletteIndex();
+                for (int i = 0; i < MaxLayers; i++)
+                {
+                    LayerColors lc = layers[i];
+                    lc.shadowColorIndex    = Mathf.Clamp(lc.shadowColorIndex, 0, maxIndex);
+                    lc.baseColorIndex      = Mathf.Clamp(lc.baseColorIndex, 0, maxIndex);
+                    lc.highlightColorIndex = Mathf.Clamp(lc.highlightColorIndex, 0, maxIndex);
+
+                    _materialInstance.SetColor(ColorShadowIds[i],    GetCachedColor(lc.shadowColorIndex));
+                    _materialInstance.SetColor(ColorBaseIds[i],       GetCachedColor(lc.baseColorIndex));
+                    _materialInstance.SetColor(ColorHighlightIds[i],  GetCachedColor(lc.highlightColorIndex));
+                }
+                break;
             }
         }
 

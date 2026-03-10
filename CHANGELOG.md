@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.13.0
+
+- **Shader**: Added Texture Variation mode — assign shadow and highlight texture variants per terrain layer. The shader picks which texture to display based on the toon lighting band, using the terrain layer's own texture as the base/mid band.
+- **Controller**: Replaced `usePaletteRemap` toggle with `TerrainToonMode` enum (FlatColor / PaletteRemap / TextureVariation). Existing components auto-migrate via `OnValidate`.
+- **Editor**: Mode selector dropdown with dedicated UI per mode — texture slots for TextureVariation, palette ramp for PaletteRemap, color picker for FlatColor.
+
 ## 1.12.1
 
 - **Shader**: Fixed palette remap inconsistency — LUT is now built in the correct color space (linear for Linear projects, sRGB for Gamma) so terrain texture lookups match palette colors reliably.

@@ -14,7 +14,7 @@ public class PaletteToonTerrainControllerEditor : Editor
 
     private SerializedProperty _targetTerrain;
     private SerializedProperty _paletteTexture;
-    private SerializedProperty _usePaletteRemap;
+    private SerializedProperty _toonMode;
     private SerializedProperty _paletteRampTexture;
     private SerializedProperty _layers;
     private SerializedProperty _darkBandPercentage;
@@ -47,7 +47,7 @@ public class PaletteToonTerrainControllerEditor : Editor
     {
         _targetTerrain = serializedObject.FindProperty("targetTerrain");
         _paletteTexture = serializedObject.FindProperty("paletteTexture");
-        _usePaletteRemap = serializedObject.FindProperty("usePaletteRemap");
+        _toonMode = serializedObject.FindProperty("toonMode");
         _paletteRampTexture = serializedObject.FindProperty("paletteRampTexture");
         _layers = serializedObject.FindProperty("layers");
         _darkBandPercentage = serializedObject.FindProperty("darkBandPercentage");
@@ -89,16 +89,17 @@ public class PaletteToonTerrainControllerEditor : Editor
             }
         }
 
-        // ── Palette Remap ──
+        // ── Toon Mode ──
         EditorGUILayout.Space(6f);
-        EditorGUILayout.PropertyField(_usePaletteRemap,
-            new GUIContent("Use Palette Remap",
-                "Sample terrain layer textures and automatically remap each pixel to its " +
-                "shadow/base/highlight palette color based on lighting."));
+        EditorGUILayout.PropertyField(_toonMode,
+            new GUIContent("Toon Mode",
+                "FlatColor: per-layer colors from palette.\n" +
+                "PaletteRemap: auto-remap texture colors via 3D LUT.\n" +
+                "TextureVariation: assign shadow/highlight texture variants per layer."));
 
-        bool isRemapMode = _usePaletteRemap.boolValue;
+        var mode = (PaletteToonTerrainController.TerrainToonMode)_toonMode.enumValueIndex;
 
-        if (isRemapMode)
+        if (mode == PaletteToonTerrainController.TerrainToonMode.PaletteRemap)
         {
             EditorGUI.indentLevel++;
             EditorGUILayout.PropertyField(_paletteRampTexture,
@@ -147,6 +148,55 @@ public class PaletteToonTerrainControllerEditor : Editor
                 "nearest palette color and remapped to shadow/base/highlight automatically.",
                 MessageType.Info);
             EditorGUI.indentLevel--;
+        }
+        else if (mode == PaletteToonTerrainController.TerrainToonMode.TextureVariation)
+        {
+            // ── Texture Variation Mode ──
+            EditorGUILayout.Space(6f);
+            EditorGUILayout.LabelField("Layer Textures", EditorStyles.boldLabel);
+            EditorGUILayout.HelpBox(
+                "Assign shadow and highlight texture variants per layer. " +
+                "The base (mid) texture is the terrain layer's own texture.",
+                MessageType.Info);
+
+            int layerCount = PaletteToonTerrainController.MaxLayers;
+            for (int i = 0; i < layerCount; i++)
+            {
+                string layerName = GetTerrainLayerName(ctrl.targetTerrain, i);
+                Texture2D layerDiffuse = GetTerrainLayerDiffuse(ctrl.targetTerrain, i);
+                string label = string.IsNullOrEmpty(layerName)
+                    ? $"Layer {i}"
+                    : $"Layer {i} ({layerName})";
+
+                bool newFoldout = EditorGUILayout.Foldout(_layerFoldouts[i], label, true);
+                if (newFoldout != _layerFoldouts[i])
+                {
+                    _layerFoldouts[i] = newFoldout;
+                    SessionState.SetBool(LayerFoldoutKeyPrefix + i, newFoldout);
+                }
+
+                if (_layerFoldouts[i])
+                {
+                    EditorGUI.indentLevel++;
+                    SerializedProperty layer = _layers.GetArrayElementAtIndex(i);
+
+                    EditorGUILayout.PropertyField(
+                        layer.FindPropertyRelative("shadowTexture"),
+                        new GUIContent("Shadow Texture"));
+
+                    // Show base texture (read-only) from terrain layer
+                    EditorGUI.BeginDisabledGroup(true);
+                    EditorGUILayout.ObjectField("Base Texture (Terrain Layer)",
+                        layerDiffuse, typeof(Texture2D), false);
+                    EditorGUI.EndDisabledGroup();
+
+                    EditorGUILayout.PropertyField(
+                        layer.FindPropertyRelative("highlightTexture"),
+                        new GUIContent("Highlight Texture"));
+
+                    EditorGUI.indentLevel--;
+                }
+            }
         }
         else
         {
@@ -490,6 +540,18 @@ public class PaletteToonTerrainControllerEditor : Editor
             return null;
 
         return terrainLayers[layerIndex].name;
+    }
+
+    private static Texture2D GetTerrainLayerDiffuse(Terrain terrain, int layerIndex)
+    {
+        if (terrain == null || terrain.terrainData == null)
+            return null;
+
+        TerrainLayer[] terrainLayers = terrain.terrainData.terrainLayers;
+        if (terrainLayers == null || layerIndex >= terrainLayers.Length || terrainLayers[layerIndex] == null)
+            return null;
+
+        return terrainLayers[layerIndex].diffuseTexture;
     }
 
     private Color GetPaletteColor(int index)

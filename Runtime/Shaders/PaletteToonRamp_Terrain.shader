@@ -30,10 +30,20 @@ Shader "Custom/PaletteToonRamp_Terrain"
         [HideInInspector] _Splat2("Layer 2", 2D) = "grey" {}
         [HideInInspector] _Splat3("Layer 3", 2D) = "grey" {}
 
-        // Palette remap (set by controller when usePaletteRemap is enabled)
+        // Palette remap (set by controller in PaletteRemap mode)
         [HideInInspector] _PaletteRamp("Palette Ramp", 2D) = "white" {}
         [HideInInspector] _PaletteRowLUT("Palette Row LUT", 3D) = "" {}
         [HideInInspector] _PaletteRows("Palette Rows", Float) = 1
+
+        // Texture variation (set by controller in TextureVariation mode)
+        [HideInInspector] _ShadowTex_L0("Shadow Tex L0", 2D) = "grey" {}
+        [HideInInspector] _ShadowTex_L1("Shadow Tex L1", 2D) = "grey" {}
+        [HideInInspector] _ShadowTex_L2("Shadow Tex L2", 2D) = "grey" {}
+        [HideInInspector] _ShadowTex_L3("Shadow Tex L3", 2D) = "grey" {}
+        [HideInInspector] _HighlightTex_L0("Highlight Tex L0", 2D) = "grey" {}
+        [HideInInspector] _HighlightTex_L1("Highlight Tex L1", 2D) = "grey" {}
+        [HideInInspector] _HighlightTex_L2("Highlight Tex L2", 2D) = "grey" {}
+        [HideInInspector] _HighlightTex_L3("Highlight Tex L3", 2D) = "grey" {}
 
         _Threshold1("Shadow Threshold", Range(0, 1)) = 0.35
         _Threshold2("Highlight Threshold", Range(0, 1)) = 0.75
@@ -70,6 +80,7 @@ Shader "Custom/PaletteToonRamp_Terrain"
             #pragma multi_compile_fragment _ _SHADOWS_SOFT
             #pragma multi_compile_fog
             #pragma shader_feature_local _PALETTE_REMAP
+            #pragma shader_feature_local _TEXTURE_VARIATION
 
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
@@ -101,6 +112,15 @@ Shader "Custom/PaletteToonRamp_Terrain"
             TEXTURE2D(_PaletteRamp);
             TEXTURE3D(_PaletteRowLUT);
             SAMPLER(sampler_point_clamp);
+
+            TEXTURE2D(_ShadowTex_L0);
+            TEXTURE2D(_ShadowTex_L1);
+            TEXTURE2D(_ShadowTex_L2);
+            TEXTURE2D(_ShadowTex_L3);
+            TEXTURE2D(_HighlightTex_L0);
+            TEXTURE2D(_HighlightTex_L1);
+            TEXTURE2D(_HighlightTex_L2);
+            TEXTURE2D(_HighlightTex_L3);
 
             CBUFFER_START(UnityPerMaterial)
                 float4 _BaseColor;
@@ -261,7 +281,48 @@ Shader "Custom/PaletteToonRamp_Terrain"
                 // ── splatmap blending ──
                 float4 splat = SAMPLE_TEXTURE2D(_Control, sampler_Control, input.controlUV);
 
-            #if defined(_PALETTE_REMAP)
+            #if defined(_TEXTURE_VARIATION)
+                // Texture variation mode: per-layer shadow/highlight texture variants
+                // with the base terrain layer texture as the mid band.
+                float3 color = float3(0, 0, 0);
+
+                if (splat.r > 0.001)
+                {
+                    float2 uv0 = input.controlUV * _Splat0_ST.xy + _Splat0_ST.zw;
+                    float3 s0 = SAMPLE_TEXTURE2D(_ShadowTex_L0, sampler_Splat0, uv0).rgb;
+                    float3 b0 = SAMPLE_TEXTURE2D(_Splat0, sampler_Splat0, uv0).rgb;
+                    float3 h0 = SAMPLE_TEXTURE2D(_HighlightTex_L0, sampler_Splat0, uv0).rgb;
+                    color += ToonRamp(totalLight, s0, b0, h0) * splat.r;
+                }
+
+                if (splat.g > 0.001)
+                {
+                    float2 uv1 = input.controlUV * _Splat1_ST.xy + _Splat1_ST.zw;
+                    float3 s1 = SAMPLE_TEXTURE2D(_ShadowTex_L1, sampler_Splat1, uv1).rgb;
+                    float3 b1 = SAMPLE_TEXTURE2D(_Splat1, sampler_Splat1, uv1).rgb;
+                    float3 h1 = SAMPLE_TEXTURE2D(_HighlightTex_L1, sampler_Splat1, uv1).rgb;
+                    color += ToonRamp(totalLight, s1, b1, h1) * splat.g;
+                }
+
+                if (splat.b > 0.001)
+                {
+                    float2 uv2 = input.controlUV * _Splat2_ST.xy + _Splat2_ST.zw;
+                    float3 s2 = SAMPLE_TEXTURE2D(_ShadowTex_L2, sampler_Splat2, uv2).rgb;
+                    float3 b2 = SAMPLE_TEXTURE2D(_Splat2, sampler_Splat2, uv2).rgb;
+                    float3 h2 = SAMPLE_TEXTURE2D(_HighlightTex_L2, sampler_Splat2, uv2).rgb;
+                    color += ToonRamp(totalLight, s2, b2, h2) * splat.b;
+                }
+
+                if (splat.a > 0.001)
+                {
+                    float2 uv3 = input.controlUV * _Splat3_ST.xy + _Splat3_ST.zw;
+                    float3 s3 = SAMPLE_TEXTURE2D(_ShadowTex_L3, sampler_Splat3, uv3).rgb;
+                    float3 b3 = SAMPLE_TEXTURE2D(_Splat3, sampler_Splat3, uv3).rgb;
+                    float3 h3 = SAMPLE_TEXTURE2D(_HighlightTex_L3, sampler_Splat3, uv3).rgb;
+                    color += ToonRamp(totalLight, s3, b3, h3) * splat.a;
+                }
+
+            #elif defined(_PALETTE_REMAP)
                 // Palette remap mode: sample layer textures, look up palette row
                 // via 3D LUT, then pick shadow/base/highlight from that row.
                 int band = (totalLight < _Threshold1) ? 0
@@ -306,6 +367,7 @@ Shader "Custom/PaletteToonRamp_Terrain"
                     float3 ramp3 = SAMPLE_TEXTURE2D_LOD(_PaletteRamp, sampler_point_clamp, float2(bandU, rowNorm3), 0).rgb;
                     color += ramp3 * splat.a;
                 }
+
             #else
                 // Flat color mode: per-layer toon ramp from controller palette indices
                 float3 c0 = ToonRamp(totalLight, _ColorShadow_L0.rgb, _ColorBase_L0.rgb, _ColorHighlight_L0.rgb);
