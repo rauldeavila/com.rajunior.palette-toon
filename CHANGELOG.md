@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.13.1
+
+- **Editor**: Fixed auto-setup color matching selecting wrong palette rows in Linear projects — `GetMaterialBaseColor` now uses `GetVector` instead of `GetColor` to read raw sRGB values, preventing double gamma-to-linear conversion during Delta-E comparison.
+
 ## 1.13.0
 
 - **Shader**: Added Texture Variation mode — assign shadow and highlight texture variants per terrain layer. The shader picks which texture to display based on the toon lighting band, using the terrain layer's own texture as the base/mid band.

@@ -277,11 +277,28 @@ public static class PaletteToonAutoSetup
 
     private static Color GetMaterialBaseColor(Material mat)
     {
+        // Use GetVector instead of GetColor to retrieve the raw stored
+        // value without color-space conversion. In Linear projects,
+        // GetColor() returns linearized values for non-[Gamma] properties,
+        // but palette colors are read as raw sRGB from the PNG.
+        // Both must be in the same space (sRGB) for correct Delta-E matching.
         if (mat.HasProperty("_BaseColor"))
-            return mat.GetColor("_BaseColor");
+        {
+            Vector4 v = mat.GetVector("_BaseColor");
+            return new Color(v.x, v.y, v.z, v.w);
+        }
         if (mat.HasProperty("_Color"))
-            return mat.GetColor("_Color");
-        return mat.color;
+        {
+            Vector4 v = mat.GetVector("_Color");
+            return new Color(v.x, v.y, v.z, v.w);
+        }
+
+        // mat.color uses GetColor internally → may be linearized.
+        // Convert back to gamma/sRGB for consistent matching.
+        Color c = mat.color;
+        if (QualitySettings.activeColorSpace == ColorSpace.Linear)
+            c = c.gamma;
+        return c;
     }
 
     private static PaletteToonController FindControllerForSlot(
